@@ -22,11 +22,10 @@ export function authorizeRoles(...rolesPermitidos) {
         try {
         if (!req.user?.sub) return res.status(401).json({ message: 'No autenticado' });
 
-        // Si ya viene roles en el token, úsalo; si no, consulta.
         let roles = req.user.roles;
         if (!Array.isArray(roles)) {
             const usuario = await Usuario.findByPk(req.user.sub, { include: { model: Rol, through: { attributes: [] } } });
-            roles = usuario?.Rols?.map(r => r.nombre) ?? []; // Sequelize pluraliza como Rols por el modelo "Rol"
+            roles = usuario?.Rols?.map(r => r.nombre) ?? [];
         }
 
         const permitido = roles.some(r => rolesPermitidos.includes(r));

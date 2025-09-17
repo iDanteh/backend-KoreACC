@@ -39,6 +39,10 @@ export async function getUsuarioByIdService(id_usuario) {
     return Usuario.findByPk(id_usuario, {
         include: { model: Rol, attributes: ['nombre'], through: { attributes: [] } },
         attributes: { exclude: ['contrasena'] },
+        include: [
+            { model: Rol, attributes: ['nombre'], through: { attributes: [] } },
+            { model: Usuario, as: 'Modificador', attributes: ['id_usuario', 'nombre', 'apellido_p', 'usuario'] }
+        ],
     });
 }
 
@@ -57,11 +61,16 @@ export async function createUsuarioService(payload, rolesNombres = []) {
     return getUsuarioByIdService(user.id_usuario);
 }
 
-export async function updateUsuarioService(id_usuario, updates, rolesNombres) {
+export async function updateUsuarioService(id_usuario, updates, rolesNombres, auditMeta) {
     const user = await Usuario.findByPk(id_usuario);
     if (!user) return null;
 
-    await user.update(updates);
+    const actorId = auditMeta?.actorId || null;
+    updates.modificado_por = actorId;
+
+    await user.update(updates, {
+        individualHooks: true,
+    });
 
     if (Array.isArray(rolesNombres)) {
         const roles = await Rol.findAll({ where: { nombre: rolesNombres } });
@@ -74,18 +83,26 @@ export async function updateUsuarioService(id_usuario, updates, rolesNombres) {
     return getUsuarioByIdService(id_usuario);
 }
 
-export async function softDeleteUsuarioService(id_usuario) {
+export async function softDeleteUsuarioService(id_usuario, auditMeta) {
     const user = await Usuario.findByPk(id_usuario);
     if (!user) return null;
 
-    await user.update({ estatus: false, fecha_inactivacion: new Date() });
+    await user.update(
+        { estatus: false, fecha_inactivacion: new Date(), modificado_por: auditMeta?.actorId ?? null },
+        { individualHooks: true }
+    );
+
     return getUsuarioByIdService(id_usuario);
-    }
+}
 
-    export async function reactivateUsuarioService(id_usuario) {
+export async function reactivateUsuarioService(id_usuario, auditMeta) {
     const user = await Usuario.findByPk(id_usuario);
     if (!user) return null;
 
-    await user.update({ estatus: true, fecha_inactivacion: null });
+    await user.update(
+        { estatus: true, fecha_inactivacion: null, modificado_por: auditMeta?.actorId ?? null },
+        { individualHooks: true }
+    );
+
     return getUsuarioByIdService(id_usuario);
 }
