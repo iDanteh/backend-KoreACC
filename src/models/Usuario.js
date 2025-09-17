@@ -21,6 +21,7 @@ Usuario.init({
     fecha_creacion: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     fecha_inactivacion: { type: DataTypes.DATE },
     fecha_modificacion: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+    modificado_por: { type: DataTypes.INTEGER, allowNull: true },
     }, {
     sequelize,
     tableName: 'usuario',

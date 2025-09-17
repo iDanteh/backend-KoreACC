@@ -84,6 +84,7 @@ export async function updateUsuario(req, res, next) {
         const errors = validationResult(req);
         if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
+        // Se especifican los campos permitidos para actualizar
         const updates = {
         nombre: req.body.nombre,
         apellido_p: req.body.apellido_p,
@@ -98,7 +99,12 @@ export async function updateUsuario(req, res, next) {
 
         const roles = Array.isArray(req.body.roles) ? req.body.roles : undefined;
 
-        const updated = await updateUsuarioService(req.params.id, updates, roles);
+        const actorMeta = {
+            actorId: req.user?.sub ?? null,
+        };
+
+        const updated = await updateUsuarioService(req.params.id, updates, roles, actorMeta);
+
         if (!updated) return res.status(404).json({ message: 'Usuario no encontrado' });
         res.json({ message: 'Usuario actualizado', usuario: updated });
     } catch (e) {

@@ -10,6 +10,7 @@ Usuario.belongsToMany(Rol, {
     foreignKey: 'id_usuario',
     otherKey: 'id_rol',
 });
+Usuario.belongsTo(Usuario, { as: 'Modificador', foreignKey: 'modificado_por' });
 Rol.belongsToMany(Usuario, {
     through: UsuarioRol,
     foreignKey: 'id_rol',
