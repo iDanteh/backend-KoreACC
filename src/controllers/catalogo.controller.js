@@ -14,7 +14,7 @@ export async function getRolesYPermisos(req, res, next) {
         }),
         ]);
 
-        // Opcional: cache ligero (60s)
+        // Cache ligero (60s)
         res.set('Cache-Control', 'private, max-age=60');
 
         res.json({ roles, permisos });
