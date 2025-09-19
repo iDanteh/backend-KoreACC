@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { validationResult } from 'express-validator';
 import { env } from '../config/env.js';
 import { findUserForLogin } from '../services/auth.service.js';
+import { revokeToken } from '../utils/tokenDenylist.js'
 
 export async function login(req, res) {
     const errors = validationResult(req);
@@ -38,4 +39,18 @@ export async function login(req, res) {
         roles,
         },
     });
+}
+
+export async function logout(req, res) {
+    try {
+        const decoded = jwt.verify(req.token, env.jwt.secret, { issuer: env.jwt.issuer });
+        if (!decoded?.exp) {
+        return res.status(400).json({ message: 'Token sin expiración' });
+        }
+        // Revoca el token actual hasta su exp
+        revokeToken(req.token, decoded.exp);
+        return res.json({ message: 'Sesión cerrada' });
+    } catch {
+        return res.status(401).json({ message: 'Token inválido o expirado' });
+    }
 }

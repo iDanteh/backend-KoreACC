@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { Usuario, Rol } from '../models/index.js';
+import { isTokenRevoked } from '../utils/tokenDenylist.js'
 
 export function authenticateJWT(req, res, next) {
     const header = req.headers.authorization || '';
@@ -10,11 +11,20 @@ export function authenticateJWT(req, res, next) {
 
     try {
         const payload = jwt.verify(token, env.jwt.secret, { issuer: env.jwt.issuer });
+        req.token = token;
         req.user = payload;
         next();
-    } catch (err) {
+    } catch {
         return res.status(401).json({ message: 'Token inválido o expirado' });
     }
+}
+
+export function ensureNotRevoked(req, res, next) {
+    if (!req.token) return res.status(401).json({ message: 'No autenticado' });
+    if (isTokenRevoked(req.token)) {
+        return res.status(401).json({ message: 'Sesión cerrada. Inicia de nuevo.' });
+    }
+    next();
 }
 
 export function authorizeRoles(...rolesPermitidos) {
