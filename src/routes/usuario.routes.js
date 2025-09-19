@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { body, param, query } from 'express-validator';
-import { authenticateJWT, authorizeRoles } from '../middlewares/auth.js';
+import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middlewares/auth.js';
 import { listUsuarios, me, getUsuarioById, createUsuario, updateUsuario, deleteUsuario,
     reactivateUsuario, replaceRoles } from '../controllers/usuario.controller.js';
 
@@ -9,7 +9,7 @@ const router = Router();
 router.get('/me', authenticateJWT, me);
 
 // Listado con filtros/paginación
-router.get( '/', authenticateJWT,authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador', 'Contador', 'Auditor'),
     [
         query('page').optional().isInt({ min: 1 }).toInt(),
         query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
@@ -19,14 +19,12 @@ router.get( '/', authenticateJWT,authorizeRoles('Administrador', 'Contador', 'Au
     listUsuarios
 );
 
-router.get( '/:id', authenticateJWT,
-    authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/:id', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador', 'Contador', 'Auditor'),
     [param('id').isInt({ min: 1 })],
     getUsuarioById
 );
 
-router.post( '/', authenticateJWT,
-    authorizeRoles('Administrador'),
+router.post( '/', authenticateJWT,ensureNotRevoked, authorizeRoles('Administrador'),
     [
         body('nombre').isString().trim().notEmpty(),
         body('apellido_p').isString().trim().notEmpty(),
@@ -40,8 +38,7 @@ router.post( '/', authenticateJWT,
     createUsuario
 );
 
-router.put( '/:id', authenticateJWT,
-    authorizeRoles('Administrador'),
+router.put( '/:id', authenticateJWT,ensureNotRevoked, authorizeRoles('Administrador'),
     [
         param('id').isInt({ min: 1 }),
         body('nombre').optional().isString().trim(),
@@ -56,20 +53,17 @@ router.put( '/:id', authenticateJWT,
     updateUsuario
 );
 
-router.delete( '/:id', authenticateJWT,
-    authorizeRoles('Administrador'),
+router.delete( '/:id', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador'),
     [param('id').isInt({ min: 1 })],
     deleteUsuario
 );
 
-router.patch( '/:id/reactivar', authenticateJWT,
-    authorizeRoles('Administrador'),
+router.patch( '/:id/reactivar', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador'),
     [param('id').isInt({ min: 1 })],
     reactivateUsuario
 );
 
-router.post( '/:id/roles', authenticateJWT,
-    authorizeRoles('Administrador'),
+router.post( '/:id/roles', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador'),
     [
         param('id').isInt({ min: 1 }),
         body('roles').isArray({ min: 0 }).custom((arr)=>arr.every(r=>typeof r==='string')),

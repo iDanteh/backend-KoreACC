@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
-import { login } from '../controllers/auth.controller.js';
+import { login, logout } from '../controllers/auth.controller.js';
+import { sendResetByEmail } from '../controllers/password.controller.js';
 import { verifyRecaptcha } from '../middlewares/verifyRecaptcha.js';
+import { authenticateJWT, ensureNotRevoked } from '../middlewares/auth.js'
 
 const router = Router();
 
@@ -13,6 +15,20 @@ router.post('/login',
     ],
     verifyRecaptcha,
     login
+);
+
+router.post(
+    '/logout',
+    authenticateJWT,
+    ensureNotRevoked,
+    logout
+);
+
+router.post('/reset-password',
+    [
+        body('email').isEmail().normalizeEmail().withMessage('email inválido'),
+    ],
+    sendResetByEmail
 );
 
 export default router;
