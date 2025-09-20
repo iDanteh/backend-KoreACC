@@ -2,11 +2,27 @@ import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middlewares/auth.js';
 import { listUsuarios, me, getUsuarioById, createUsuario, updateUsuario, deleteUsuario,
-    reactivateUsuario, replaceRoles } from '../controllers/usuario.controller.js';
+    reactivateUsuario, replaceRoles,updateMe  } from '../controllers/usuario.controller.js';
 
 const router = Router();
 
+
 router.get('/me', authenticateJWT, me);
+
+
+router.put(
+  '/me',
+  authenticateJWT,
+  ensureNotRevoked,
+  [
+    body('nombre').optional().isString().trim(),
+    body('apellido_p').optional().isString().trim(),
+    body('apellido_m').optional({ nullable: true }).isString().trim(),
+    body('correo').optional().isEmail().normalizeEmail(),
+    body('telefono').optional().isString().trim(),
+  ],
+  updateMe
+);
 
 // Listado con filtros/paginación
 router.get( '/', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador', 'Contador', 'Auditor'),

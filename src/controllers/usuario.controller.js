@@ -22,6 +22,27 @@ export async function me(req, res) {
         return res.status(500).json({ error: 'Error obteniendo usuario' });
     }
 }
+export async function updateMe(req, res) {
+  try {
+    const updates = {
+      nombre: req.body.nombre,
+      apellido_p: req.body.apellido_p,
+      apellido_m: req.body.apellido_m,
+      correo: req.body.correo,
+      telefono: req.body.telefono,
+    };
+
+    Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
+
+    const updated = await updateUsuarioService(req.user.sub, updates);
+    if (!updated) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+    res.json(updated);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error actualizando perfil' });
+  }
+}
 
 export async function listUsuarios(req, res, next) {
     try {

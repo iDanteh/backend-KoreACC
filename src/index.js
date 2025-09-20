@@ -9,6 +9,7 @@ import { sequelize } from './config/db.js';
 import './models/index.js'; // registra asociaciones
 
 import apiV1 from './routes/index.js';
+import usuarioRoutes from './routes/usuario.routes.js';
 
 const app = express();
 
@@ -17,13 +18,14 @@ app.use(helmet());
 app.use(cors({ origin: env.security.corsOrigin }));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan(env.nodeEnv === 'development' ? 'dev' : 'combined'));
-
+app.use('/api/v1', apiV1);
 app.use(rateLimit({
   windowMs: env.security.rateLimitWindowMs,
   max: env.security.rateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
 }));
+
 
 // Prefijo rutas API v1
 app.use('/api/v1', apiV1);
