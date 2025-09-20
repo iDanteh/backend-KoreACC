@@ -3,9 +3,24 @@ import { listUsuariosService, getUsuarioByIdService, createUsuarioService,
     updateUsuarioService, softDeleteUsuarioService, reactivateUsuarioService } from '../services/usuario.service.js';
 import { generateSecurePassword } from '../utils/password.js';
 import { sendMail } from '../config/mailer.js';
+import { Usuario } from '../models/Usuario.js';
 
 export async function me(req, res) {
-    return res.json({ user: req.user });
+    try {
+        const userFromDb = await Usuario.findByPk(req.user.sub, {
+        attributes: ['id_usuario', 'nombre', 'apellido_p', 'apellido_m', 'correo']
+        });
+
+        return res.json({
+        id: userFromDb.id,
+        nombre: userFromDb.nombre,
+        apellidos: `${userFromDb.apellido_p} ${userFromDb.apellido_m}`,
+        correo: userFromDb.correo,
+        roles: req.user.roles
+        });
+    } catch (error) {
+        return res.status(500).json({ error: 'Error obteniendo usuario' });
+    }
 }
 
 export async function listUsuarios(req, res, next) {

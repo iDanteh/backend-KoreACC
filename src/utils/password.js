@@ -8,11 +8,11 @@ export const compare = (plain, hashed) => bcrypt.compare(plain, hashed);
 // Genera contraseña segura cumpliendo:
 // - >= 8 chars
 // - 1 mayúscula, 1 minúscula, 1 número, 1 especial
-export function generateSecurePassword(length = 12) {
+export function generateSecurePassword(length = 16) {
     const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const lower = 'abcdefghijklmnopqrstuvwxyz';
     const digits = '0123456789';
-    const specials = '!@#$%^&*()-_=+[]{};:,.<>?';
+    const specials = '!@#$%^&*()-_=+[]{};:,.?';
     const all = upper + lower + digits + specials;
 
     // Garantiza al menos 1 de cada
