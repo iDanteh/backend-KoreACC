@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middlewares/auth.js';
-import { listUsuarios, me, getUsuarioById, createUsuario, updateUsuario, deleteUsuario,
-    reactivateUsuario, replaceRoles,updateMe  } from '../controllers/usuario.controller.js';
+import { listUsuarios, me, getUsuarioById, createUsuario, updateUsuario, deleteUsuario, reactivateUsuario, replaceRoles, updateMe } from '../controllers/usuario.controller.js';
+import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 
 const router = Router();
 
@@ -10,22 +10,19 @@ const router = Router();
 router.get('/me', authenticateJWT, me);
 
 
-router.put(
-  '/me',
-  authenticateJWT,
-  ensureNotRevoked,
-  [
-    body('nombre').optional().isString().trim(),
-    body('apellido_p').optional().isString().trim(),
-    body('apellido_m').optional({ nullable: true }).isString().trim(),
-    body('correo').optional().isEmail().normalizeEmail(),
-    body('telefono').optional().isString().trim(),
-  ],
-  updateMe
+router.put('/me', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
+    [
+        body('nombre').optional().isString().trim(),
+        body('apellido_p').optional().isString().trim(),
+        body('apellido_m').optional({ nullable: true }).isString().trim(),
+        body('correo').optional().isEmail().normalizeEmail(),
+        body('telefono').optional().isString().trim(),
+    ],
+    updateMe
 );
 
 // Listado con filtros/paginación
-router.get( '/', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),authorizeRoles('Administrador', 'Contador', 'Auditor'),
     [
         query('page').optional().isInt({ min: 1 }).toInt(),
         query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
@@ -35,12 +32,12 @@ router.get( '/', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrado
     listUsuarios
 );
 
-router.get( '/:id', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador', 'Contador', 'Auditor'),
     [param('id').isInt({ min: 1 })],
     getUsuarioById
 );
 
-router.post( '/', authenticateJWT,ensureNotRevoked, authorizeRoles('Administrador'),
+router.post( '/', authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
     [
         body('nombre').isString().trim().notEmpty(),
         body('apellido_p').isString().trim().notEmpty(),
@@ -54,7 +51,7 @@ router.post( '/', authenticateJWT,ensureNotRevoked, authorizeRoles('Administrado
     createUsuario
 );
 
-router.put( '/:id', authenticateJWT,ensureNotRevoked, authorizeRoles('Administrador'),
+router.put( '/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
     [
         param('id').isInt({ min: 1 }),
         body('nombre').optional().isString().trim(),
@@ -69,17 +66,17 @@ router.put( '/:id', authenticateJWT,ensureNotRevoked, authorizeRoles('Administra
     updateUsuario
 );
 
-router.delete( '/:id', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador'),
+router.delete( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
     [param('id').isInt({ min: 1 })],
     deleteUsuario
 );
 
-router.patch( '/:id/reactivar', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador'),
+router.patch( '/:id/reactivar', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
     [param('id').isInt({ min: 1 })],
     reactivateUsuario
 );
 
-router.post( '/:id/roles', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador'),
+router.post( '/:id/roles', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
     [
         param('id').isInt({ min: 1 }),
         body('roles').isArray({ min: 0 }).custom((arr)=>arr.every(r=>typeof r==='string')),

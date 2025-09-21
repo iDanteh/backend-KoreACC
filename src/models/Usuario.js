@@ -22,6 +22,8 @@ Usuario.init({
     fecha_inactivacion: { type: DataTypes.DATE },
     fecha_modificacion: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     modificado_por: { type: DataTypes.INTEGER, allowNull: true },
+    debe_cambiar_contrasena: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    ultimo_cambio_contrasena: { type: DataTypes.DATE, allowNull: true },
     }, {
     sequelize,
     tableName: 'usuario',
