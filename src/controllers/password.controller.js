@@ -1,6 +1,8 @@
 import { validationResult } from 'express-validator';
-import { Usuario } from '../models/index.js';
-import { generateSecurePassword } from '../utils/password.js';
+import jwt from 'jsonwebtoken';
+import { env } from '../config/env.js';
+import { Usuario, Rol } from '../models/index.js';
+import { generateSecurePassword, validatePasswordPolicy, sanitizePasswordInput } from '../utils/password.js';
 import { sendMail } from '../config/mailer.js';
 
 export async function sendResetByEmail(req, res, next) {
@@ -40,4 +42,54 @@ export async function sendResetByEmail(req, res, next) {
 
         return res.json({ message: 'Si el correo existe, se enviaron instrucciones.' });
     } catch (e) { next(e); }
+}
+
+export async function changePassword(req, res, next) {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    const userId = req.user?.sub;
+    const rawOld = req.body.oldPassword;
+    const rawNew = req.body.newPassword;
+
+    const oldPassword = sanitizePasswordInput(rawOld);
+    const newPassword = sanitizePasswordInput(rawNew);
+
+    // Valida política
+    const policy = validatePasswordPolicy(newPassword, { minLength: 8 });
+    if (!policy.valid) {
+      return res.status(400).json({ message: 'La nueva contraseña no cumple política', reasons: policy.reasons });
+    }
+
+    const user = await Usuario.findByPk(userId, { include: { model: Rol, through: { attributes: [] } } });
+    if (!user || !user.estatus) return res.status(401).json({ message: 'No autenticado' });
+
+    // ⚖️ Opción A (más estricta): siempre validar oldPassword
+    // ⚙️ Opción B (más amable UX): si el token es solo para cambio, omitir check de old
+    const isPwdChangeToken = req.user?.purpose === 'password_change';
+
+    if (!isPwdChangeToken) {
+      const okOld = await user.validarContrasena(oldPassword);
+      if (!okOld) return res.status(400).json({ message: 'Contraseña actual incorrecta' });
+    } else {
+      const okOld = await user.validarContrasena(oldPassword);
+      if (!okOld) return res.status(400).json({ message: 'Contraseña actual incorrecta' });
+    }
+
+    await user.update({
+      contrasena: newPassword, // hook hashea
+      debe_cambiar_contrasena: false,
+      ultimo_cambio_contrasena: new Date(),
+    });
+
+    const roles = user.Rols?.map(r => r.nombre) ?? [];
+    const token = jwt.sign(
+      { sub: user.id_usuario, usuario: user.usuario, roles },
+      env.jwt.secret,
+      { expiresIn: env.jwt.expiresIn, issuer: env.jwt.issuer }
+    );
+
+    res.json({ message: 'Contraseña actualizada', token });
+  } catch (e) { next(e); }
 }

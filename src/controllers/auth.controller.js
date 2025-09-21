@@ -16,29 +16,26 @@ export async function login(req, res) {
     }
 
     const roles = user.Rols?.map(r => r.nombre) ?? [];
-    const payload = {
-        sub: user.id_usuario,
-        usuario: user.usuario,
-        roles,
-    };
+    if (user.debe_cambiar_contrasena) {
+        const tokenCambio = jwt.sign(
+        { sub: user.id_usuario, usuario: user.usuario, roles, purpose: 'password_change' },
+        env.jwt.secret,
+        { expiresIn: '15m', issuer: env.jwt.issuer }
+        );
+        return res.status(428).json({
+        code: 'PASSWORD_CHANGE_REQUIRED',
+        message: 'Debes cambiar tu contraseña para continuar.',
+        token: tokenCambio,
+        user: { id_usuario: user.id_usuario, usuario: user.usuario }
+        });
+    }
 
-    const token = jwt.sign(payload, env.jwt.secret, {
+    // Flujo normal
+    const token = jwt.sign({ sub: user.id_usuario, usuario: user.usuario, roles }, env.jwt.secret, {
         expiresIn: env.jwt.expiresIn,
         issuer: env.jwt.issuer,
     });
-
-    return res.json({
-        token,
-        user: {
-        id_usuario: user.id_usuario,
-        nombre: user.nombre,
-        apellido_p: user.apellido_p,
-        apellido_m: user.apellido_m,
-        correo: user.correo,
-        usuario: user.usuario,
-        roles,
-        },
-    });
+    return res.json({ token, user: { id_usuario: user.id_usuario, usuario: user.usuario, roles } });
 }
 
 export async function logout(req, res) {
