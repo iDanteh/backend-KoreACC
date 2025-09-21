@@ -8,7 +8,7 @@ import { Usuario } from '../models/Usuario.js';
 export async function me(req, res) {
     try {
         const userFromDb = await Usuario.findByPk(req.user.sub, {
-        attributes: ['id_usuario', 'nombre', 'apellido_p', 'apellido_m', 'correo']
+        attributes: ['id_usuario', 'nombre', 'apellido_p', 'apellido_m', 'correo', 'debe_cambiar_contrasena']
         });
 
         return res.json({
@@ -16,7 +16,8 @@ export async function me(req, res) {
         nombre: userFromDb.nombre,
         apellidos: `${userFromDb.apellido_p} ${userFromDb.apellido_m}`,
         correo: userFromDb.correo,
-        roles: req.user.roles
+        roles: req.user.roles,
+        debe_cambiar_contrasena: userFromDb.debe_cambiar_contrasena,
         });
     } catch (error) {
         return res.status(500).json({ error: 'Error obteniendo usuario' });
