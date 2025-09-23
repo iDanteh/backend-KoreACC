@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import { Usuario, Rol, UsuarioRol } from '../models/index.js';
+import { Usuario, Rol, UsuarioRol, Permiso } from '../models/index.js';
 
 export async function listUsuariosService({ page = 1, limit = 10, q, estatus }) {
     const where = {};
@@ -44,6 +44,33 @@ export async function getUsuarioByIdService(id_usuario) {
             { model: Usuario, as: 'Modificador', attributes: ['id_usuario', 'nombre', 'apellido_p', 'usuario'] }
         ],
     });
+}
+
+export async function getPermissionsForUser(id_usuario) {
+    if (!id_usuario) return [];
+
+    const user = await Usuario.findByPk(id_usuario, {
+        attributes: ['id_usuario'],
+        include: [{
+            model: Rol,
+            attributes: ['id_rol', 'nombre'],
+            through: { attributes: [] },
+            include: [{
+                model: Permiso,
+                attributes: ['id_permiso', 'nombre'],
+                through: { attributes: [] }
+            }]
+        }]
+    });
+
+    if (!user) return [];
+    const roles = user.Rols || [];
+    const set = new Set();
+    for (const r of roles) {
+        const permisos = r.Permisos || [];
+        for (const p of permisos) set.add(p.nombre);
+    }
+    return Array.from(set);
 }
 
 export async function createUsuarioService(payload, rolesNombres = []) {
