@@ -4,6 +4,8 @@ import { listUsuariosService, getUsuarioByIdService, createUsuarioService,
 import { generateSecurePassword } from '../utils/password.js';
 import { sendMail } from '../config/mailer.js';
 import { Usuario } from '../models/Usuario.js';
+import { Rol } from '../models/Rol.js';
+import { Permiso } from '../models/Permiso.js';
 
 export async function me(req, res) {
     try {
@@ -44,6 +46,61 @@ export async function updateMe(req, res) {
         res.status(500).json({ error: 'Error actualizando perfil' });
     }
 }
+export const getMyPermisos = async (req, res) => {
+  try {
+    const usuarioId = req.user.sub;
+
+    const usuario = await Usuario.findByPk(usuarioId, {
+      include: [
+        {
+          model: Rol,
+          as: 'roles',
+          attributes: ['id_rol', 'nombre'], // solo lo necesario
+          include: [
+            {
+              model: Permiso,
+              as: 'permisos',
+              attributes: ['id_permiso', 'nombre'], // solo nombre e id
+              through: { attributes: [] }, // evita traer datos de tabla intermedia
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // 🔥 Junta todos los permisos de todos los roles, sin duplicados
+    const permisos = [
+      ...new Set(
+        usuario.roles.flatMap((rol) =>
+          rol.permisos.map((p) => p.nombre)
+        )
+      ),
+    ];
+
+    return res.json({ permisos });
+  } catch (error) {
+    console.error('❌ Error en getMyPermisos:', error);
+    return res.status(500).json({ message: 'Error al obtener permisos' });
+  }
+};
+export const getAllPermisos = async (req, res) => {
+  try {
+    const permisos = await Permiso.findAll({
+      attributes: ['id_permiso', 'nombre'], 
+      order: [['nombre', 'ASC']], 
+    });
+
+    return res.json({ permisos });
+  } catch (error) {
+    console.error('❌ Error en getAllPermisos:', error);
+    return res.status(500).json({ message: 'Error al obtener todos los permisos' });
+  }
+};
+
 
 export async function listUsuarios(req, res, next) {
     try {
@@ -180,3 +237,4 @@ export async function replaceRoles(req, res, next) {
         res.json({ message: 'Roles actualizados', usuario: updated });
     } catch (e) { next(e); }
 }
+
