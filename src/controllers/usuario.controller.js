@@ -1,6 +1,6 @@
 import { validationResult } from 'express-validator';
 import { listUsuariosService, getUsuarioByIdService, createUsuarioService,
-    updateUsuarioService, softDeleteUsuarioService, reactivateUsuarioService } from '../services/usuario.service.js';
+    updateUsuarioService, softDeleteUsuarioService, reactivateUsuarioService, getPermissionsForUser } from '../services/usuario.service.js';
 import { generateSecurePassword } from '../utils/password.js';
 import { sendMail } from '../config/mailer.js';
 import { Usuario } from '../models/Usuario.js';
@@ -23,6 +23,7 @@ export async function me(req, res) {
         return res.status(500).json({ error: 'Error obteniendo usuario' });
     }
 }
+
 export async function updateMe(req, res) {
     try {
         const updates = {
@@ -59,6 +60,15 @@ export async function getUsuarioById(req, res, next) {
         const user = await getUsuarioByIdService(req.params.id);
         if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
         res.json(user);
+    } catch (e) { next(e); }
+}
+
+export async function myPermissions(req, res, next) {
+    try {
+        const id_usuario = req.user?.sub;
+        const names = await getPermissionsForUser(id_usuario);
+        const payload = { permisos: names.map(nombre => ({ nombre })) };
+        return res.json(payload);
     } catch (e) { next(e); }
 }
 

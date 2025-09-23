@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middlewares/auth.js';
-import { listUsuarios, me, getUsuarioById, createUsuario, updateUsuario, deleteUsuario, reactivateUsuario, replaceRoles, updateMe } from '../controllers/usuario.controller.js';
+import { listUsuarios, me, getUsuarioById, createUsuario, updateUsuario, deleteUsuario, reactivateUsuario, replaceRoles, updateMe, myPermissions } from '../controllers/usuario.controller.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 
 const router = Router();
@@ -20,6 +20,8 @@ router.put('/me', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     ],
     updateMe
 );
+
+router.get('/permisos', authenticateJWT, ensureNotRevoked, myPermissions);
 
 // Listado con filtros/paginación
 router.get( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),authorizeRoles('Administrador', 'Contador', 'Auditor'),

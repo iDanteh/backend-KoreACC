@@ -2,10 +2,11 @@ import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middlewares/auth.js';
 import { listRoles, getRolById, createRol, updateRol, deleteRol, replacePermisosOnRol} from '../controllers/rol.controller.js';
+import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 
 const router = Router();
 
-router.get( '/', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador', 'Contador', 'Auditor'),
     [
         query('q').optional().isString().trim(),
         query('activo').optional().isBoolean().toBoolean(),
@@ -15,12 +16,12 @@ router.get( '/', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrado
     listRoles
 );
 
-router.get( '/:id', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador', 'Contador', 'Auditor'),
     [param('id').isInt({ min: 1 })],
     getRolById
 );
 
-router.post( '/', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador'),
+router.post( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
     [
         body('nombre').isString().trim().notEmpty(),
         body('descripcion').optional({ nullable: true }).isString().trim(),
@@ -29,7 +30,7 @@ router.post( '/', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrad
     createRol
 );
 
-router.put( '/:id', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador'),
+router.put( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
     [
         param('id').isInt({ min: 1 }),
         body('nombre').optional().isString().trim(),
@@ -39,13 +40,13 @@ router.put( '/:id', authenticateJWT, ensureNotRevoked, authorizeRoles('Administr
     updateRol
 );
 
-router.delete( '/:id', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador'),
+router.delete( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
     [param('id').isInt({ min: 1 })],
     deleteRol
 );
 
 // Reemplaza TODOS los permisos del rol por los nombres enviados
-router.post( '/:id/permisos', authenticateJWT, ensureNotRevoked, authorizeRoles('Administrador'),
+router.post( '/:id/permisos', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
     [
         param('id').isInt({ min: 1 }),
         body('permisos').isArray().withMessage('Debe ser un arreglo de nombres de permiso'),
