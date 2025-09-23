@@ -4,8 +4,8 @@ import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middleware
 import {
   listUsuarios,
   me,
-  updateMe,        // 👈 importa updateMe
-  getMyPermisos,   // 👈 importa getMyPermisos
+  updateMe,        
+  getMyPermisos,  
   getUsuarioById,
   createUsuario,
   updateUsuario,
