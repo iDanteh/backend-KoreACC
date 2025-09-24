@@ -65,8 +65,6 @@ export async function changePassword(req, res, next) {
     const user = await Usuario.findByPk(userId, { include: { model: Rol, through: { attributes: [] } } });
     if (!user || !user.estatus) return res.status(401).json({ message: 'No autenticado' });
 
-    // ⚖️ Opción A (más estricta): siempre validar oldPassword
-    // ⚙️ Opción B (más amable UX): si el token es solo para cambio, omitir check de old
     const isPwdChangeToken = req.user?.purpose === 'password_change';
 
     if (!isPwdChangeToken) {
