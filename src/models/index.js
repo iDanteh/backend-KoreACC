@@ -3,6 +3,9 @@ import { Rol } from './Rol.js';
 import { Permiso } from './Permiso.js';
 import { UsuarioRol } from './UsuarioRol.js';
 import { RolPermiso } from './RolPermiso.js';
+import { Empresa } from './Empresa.js';
+import { PeriodoContable } from './PeriodoContable.js';
+import { Impuesto } from './Impuesto.js';
 
 // Usuario <-> Rol (N:M)
 Usuario.belongsToMany(Rol, {
@@ -29,4 +32,12 @@ Permiso.belongsToMany(Rol, {
     otherKey: 'id_rol',
 });
 
-export { Usuario, Rol, Permiso, UsuarioRol, RolPermiso };
+// Empresa <-> PeriodoContable (1:N)
+Empresa.hasMany(PeriodoContable, { foreignKey: 'id_empresa' });
+PeriodoContable.belongsTo(Empresa, { foreignKey: 'id_empresa' });
+
+// Empresa <-> Impuesto (1:N)
+Empresa.hasMany(Impuesto, { foreignKey: 'id_empresa' });
+Impuesto.belongsTo(Empresa, { foreignKey: 'id_empresa' });
+
+export { Usuario, Rol, Permiso, UsuarioRol, RolPermiso, Empresa, PeriodoContable, Impuesto };
