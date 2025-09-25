@@ -24,7 +24,7 @@ router.put('/me', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
 router.get('/permisos', authenticateJWT, ensureNotRevoked, myPermissions);
 
 // Listado con filtros/paginación
-router.get( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [
         query('page').optional().isInt({ min: 1 }).toInt(),
         query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
