@@ -6,7 +6,7 @@ import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 const router = Router();
 
 // Lectura para construir formularios: cualquiera autenticado con rol de lectura
-router.get( '/roles-permisos', authenticateJWT,requireFreshPassword(), authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/roles-permisos', authenticateJWT,requireFreshPassword(),
     getRolesYPermisos
 );
 

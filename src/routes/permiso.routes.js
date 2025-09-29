@@ -15,12 +15,12 @@ router.get( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     listPermisos
 );
 
-router.get( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     getPermisoById
 );
 
-router.post( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.post( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [
         body('nombre').isString().trim().notEmpty(),
         body('descripcion').optional({ nullable: true }).isString().trim(),
@@ -28,7 +28,7 @@ router.post( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(), aut
     createPermiso
 );
 
-router.put( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.put( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [
         param('id').isInt({ min: 1 }),
         body('nombre').optional().isString().trim(),
@@ -37,7 +37,7 @@ router.put( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), a
     updatePermiso
 );
 
-router.delete( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.delete( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     deletePermiso
 );

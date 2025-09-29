@@ -7,7 +7,7 @@ import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 
 const router = Router();
 
-router.get('/', authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador','Contador','Auditor'),
+router.get('/', authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [
         query('id_empresa').optional().isInt({ min: 1 }),
         query('tipo_periodo').optional().isIn(['SEMANAL','MENSUAL','ANUAL','PERSONALIZADO']),
@@ -18,12 +18,12 @@ router.get('/', authenticateJWT,ensureNotRevoked, requireFreshPassword(), author
     listPeriodosCtrl
 );
 
-router.get('/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(),  authorizeRoles('Administrador','Contador','Auditor'),
+router.get('/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     getPeriodoCtrl
 );
 
-router.post('/', authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador','Contador'),
+router.post('/', authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [
         body('id_empresa').isInt({ min: 1 }),
         body('tipo_periodo').isIn(['SEMANAL','MENSUAL','ANUAL','PERSONALIZADO']),
@@ -34,7 +34,7 @@ router.post('/', authenticateJWT,ensureNotRevoked, requireFreshPassword(), autho
     createPeriodoCtrl
 );
 
-router.put('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador','Contador'),
+router.put('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [
         param('id').isInt({ min: 1 }),
         body('tipo_periodo').optional().isIn(['SEMANAL','MENSUAL','ANUAL','PERSONALIZADO']),
@@ -45,7 +45,7 @@ router.put('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(), auth
     updatePeriodoCtrl
 );
 
-router.delete('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.delete('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     deletePeriodoCtrl
 );
