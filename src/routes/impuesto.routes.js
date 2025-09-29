@@ -7,7 +7,7 @@ import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 
 const router = Router();
 
-router.get('/',authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador','Contador','Auditor'),
+router.get('/',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [
         query('id_empresa').optional().isInt({ min: 1 }),
         query('tipo').optional().isIn(['IVA','ISR','IEPS','RETENCION','OTRO']),
@@ -16,12 +16,12 @@ router.get('/',authenticateJWT,ensureNotRevoked, requireFreshPassword(), authori
     listImpuestosCtrl
 );
 
-router.get('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador','Contador','Auditor'),
+router.get('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     getImpuestoCtrl
 );
 
-router.post('/',authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador','Contador'),
+router.post('/',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [
         body('id_empresa').isInt({ min: 1 }),
         body('nombre').isString().trim().notEmpty(),
@@ -39,7 +39,7 @@ router.post('/',authenticateJWT,ensureNotRevoked, requireFreshPassword(), author
     createImpuestoCtrl
 );
 
-router.put('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador','Contador'),
+router.put('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [
         param('id').isInt({ min: 1 }),
         body('nombre').optional().isString().trim(),
@@ -56,7 +56,7 @@ router.put('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(), auth
     updateImpuestoCtrl
 );
 
-router.delete('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.delete('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     deleteImpuestoCtrl
 );

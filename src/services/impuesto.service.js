@@ -21,7 +21,7 @@ export const listImpuestos = (filters = {}) => {
     if (filters.id_empresa) where.id_empresa = filters.id_empresa;
     if (filters.tipo) where.tipo = filters.tipo;
     if (filters.aplica_en) where.aplica_en = filters.aplica_en;
-    return Impuesto.findAll({ where, order: [['id_impuesto','DESC']] });
+    return Impuesto.findAll({ where, order: [['id_impuesto','ASC']] });
 };
 
 export async function updateImpuesto(id, updates) {

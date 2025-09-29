@@ -42,7 +42,7 @@ Impuesto.init({
     nombre: { type: DataTypes.STRING(50), allowNull: false },
     tipo: { type: DataTypes.ENUM('IVA','ISR','IEPS','RETENCION','OTRO'), allowNull: false },
     modo: { type: DataTypes.ENUM('TASA','CUOTA','EXENTO'), allowNull: false },
-    tasa: { type: DataTypes.DECIMAL(9,6) },
+    tasa: { type: DataTypes.DECIMAL(9,2) },
     cuota: { type: DataTypes.DECIMAL(14,6) },
     aplica_en: { type: DataTypes.ENUM('VENTA','COMPRA','AMBOS'), allowNull: false },
     es_estandar: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
