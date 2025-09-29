@@ -24,7 +24,7 @@ router.put('/me', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
 router.get('/permisos', authenticateJWT, ensureNotRevoked, myPermissions);
 
 // Listado con filtros/paginación
-router.get( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [
         query('page').optional().isInt({ min: 1 }).toInt(),
         query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
@@ -34,12 +34,12 @@ router.get( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),autho
     listUsuarios
 );
 
-router.get( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), 
     [param('id').isInt({ min: 1 })],
     getUsuarioById
 );
 
-router.post( '/', authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.post( '/', authenticateJWT,ensureNotRevoked, requireFreshPassword(), 
     [
         body('nombre').isString().trim().notEmpty(),
         body('apellido_p').isString().trim().notEmpty(),
@@ -53,7 +53,7 @@ router.post( '/', authenticateJWT,ensureNotRevoked, requireFreshPassword(), auth
     createUsuario
 );
 
-router.put( '/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.put( '/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [
         param('id').isInt({ min: 1 }),
         body('nombre').optional().isString().trim(),
@@ -68,17 +68,17 @@ router.put( '/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(), au
     updateUsuario
 );
 
-router.delete( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.delete( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     deleteUsuario
 );
 
-router.patch( '/:id/reactivar', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.patch( '/:id/reactivar', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     reactivateUsuario
 );
 
-router.post( '/:id/roles', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.post( '/:id/roles', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [
         param('id').isInt({ min: 1 }),
         body('roles').isArray({ min: 0 }).custom((arr)=>arr.every(r=>typeof r==='string')),

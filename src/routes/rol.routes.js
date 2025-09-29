@@ -21,7 +21,7 @@ router.get( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), a
     getRolById
 );
 
-router.post( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.post( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [
         body('nombre').isString().trim().notEmpty(),
         body('descripcion').optional({ nullable: true }).isString().trim(),
@@ -30,7 +30,7 @@ router.post( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(), aut
     createRol
 );
 
-router.put( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.put( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [
         param('id').isInt({ min: 1 }),
         body('nombre').optional().isString().trim(),
@@ -40,13 +40,13 @@ router.put( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), a
     updateRol
 );
 
-router.delete( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.delete( '/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     deleteRol
 );
 
 // Reemplaza TODOS los permisos del rol por los nombres enviados
-router.post( '/:id/permisos', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.post( '/:id/permisos', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [
         param('id').isInt({ min: 1 }),
         body('permisos').isArray().withMessage('Debe ser un arreglo de nombres de permiso'),

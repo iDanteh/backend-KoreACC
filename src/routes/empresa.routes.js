@@ -6,19 +6,28 @@ import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 
 const router = Router();
 
-router.get('/', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get('/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     listEmpresasCtrl
 );
 
-router.get('/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get('/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     getEmpresaCtrl
 );
 
-router.post('/', authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador', 'Contador'),
+const rfcPersonaMoral = /^[A-ZÑ&]{3}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[A-Z0-9]{2}[0-9A]$/;
+const rfcPersonaFisica = /^[A-ZÑ&]{4}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[A-Z0-9]{2}[0-9A]$/;
+
+router.post('/', authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [
         body('razon_social').isString().trim().notEmpty(),
-        body('rfc').isString().trim().notEmpty(),
+        body('rfc')
+            .isString().trim().notEmpty().withMessage('El RFC es obligatorio')
+            .custom((value) => {
+                if (rfcPersonaMoral.test(value)) return true;
+                if (rfcPersonaFisica.test(value)) return true;
+                throw new Error('El RFC no es válido. Debe cumplir con el formato de persona física o moral');
+            }),
         body('domicilio_fiscal').isString().trim().notEmpty(),
         body('telefono').optional().isString(),
         body('correo_contacto').optional().isEmail(),
@@ -26,7 +35,7 @@ router.post('/', authenticateJWT,ensureNotRevoked, requireFreshPassword(), autho
     createEmpresaCtrl
 );
 
-router.put('/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador', 'Contador'),
+router.put('/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [
         param('id').isInt({ min: 1 }),
         body('razon_social').optional().isString().trim(),
@@ -38,7 +47,7 @@ router.put('/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(), aut
     updateEmpresaCtrl
 );
 
-router.delete('/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador'),
+router.delete('/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     deleteEmpresaCtrl
 );
