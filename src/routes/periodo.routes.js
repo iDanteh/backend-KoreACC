@@ -4,6 +4,7 @@ import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middleware
 import { createPeriodoCtrl, listPeriodosCtrl, getPeriodoCtrl, updatePeriodoCtrl, deletePeriodoCtrl
 } from '../controllers/periodo.controller.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
+import { generarPeriodosCtrl } from '../controllers/periodo-autogen.controller.js';
 
 const router = Router();
 
@@ -32,6 +33,14 @@ router.post('/', authenticateJWT,ensureNotRevoked, requireFreshPassword(),
         body('esta_abierto').optional().isBoolean().toBoolean(),
     ],
     createPeriodoCtrl
+);
+
+router.post('/generar', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
+    [
+        body('id_ejercicio').isInt({ min: 1 }),
+        body('frecuencia').isIn(['SEMANAL', 'QUINCENAL', 'MENSUAL', 'ANUAL']),
+    ],
+    generarPeriodosCtrl
 );
 
 router.put('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
