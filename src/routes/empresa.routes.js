@@ -39,7 +39,13 @@ router.put('/:id', authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [
         param('id').isInt({ min: 1 }),
         body('razon_social').optional().isString().trim(),
-        body('rfc').optional().isString().trim(),
+        body('rfc')
+            .isString().trim().notEmpty().withMessage('El RFC es obligatorio')
+            .custom((value) => {
+                if (rfcPersonaMoral.test(value)) return true;
+                if (rfcPersonaFisica.test(value)) return true;
+                throw new Error('El RFC no es válido. Debe cumplir con el formato de persona física o moral');
+            }),
         body('domicilio_fiscal').optional().isString().trim(),
         body('telefono').optional().isString(),
         body('correo_contacto').optional().isEmail(),
