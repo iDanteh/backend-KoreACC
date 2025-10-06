@@ -8,6 +8,7 @@ import empresaRoutes from './empresa.routes.js';
 import periodoRoutes from './periodo.routes.js';
 import impuestoRoutes from './impuesto.routes.js';
 import ejercicios from './ejercicios.routes.js';
+import centroCosto from './centro-costo.routes.js';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/empresas', empresaRoutes);
 router.use('/periodos', periodoRoutes);
 router.use('/impuestos', impuestoRoutes);
 router.use('/ejercicios', ejercicios);
+router.use('/centros', centroCosto);
 
 export default router;

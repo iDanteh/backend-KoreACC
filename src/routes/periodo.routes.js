@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middlewares/auth.js';
-import { createPeriodoCtrl, listPeriodosCtrl, getPeriodoCtrl, updatePeriodoCtrl, deletePeriodoCtrl
-} from '../controllers/periodo.controller.js';
+import { createPeriodoCtrl, listPeriodosCtrl, getPeriodoCtrl, updatePeriodoCtrl, deletePeriodoCtrl, destroyPeriodoCtrl } from '../controllers/periodo.controller.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 import { generarPeriodosCtrl } from '../controllers/periodo-autogen.controller.js';
 
@@ -57,6 +56,11 @@ router.put('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
 router.delete('/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [param('id').isInt({ min: 1 })],
     deletePeriodoCtrl
+);
+
+router.delete('/destroy/:id',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
+    [param('id').isInt({ min: 1 })],
+    destroyPeriodoCtrl
 );
 
 export default router;
