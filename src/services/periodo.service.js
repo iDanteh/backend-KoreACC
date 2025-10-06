@@ -1,5 +1,29 @@
+// services/periodo.service.js (actualizado)
+import { Op, Sequelize } from 'sequelize';
+import { sequelize } from '../config/db.js';
 import { PeriodoContable, Empresa } from '../models/index.js';
-import { Op } from 'sequelize';
+
+async function existeSolapePeriodo({
+    id_empresa,
+    id_ejercicio,
+    fecha_inicio,
+    fecha_fin,
+    excludeId,
+    transaction,
+    }) {
+    const where = {
+        id_empresa,
+        id_ejercicio,
+        esta_abierto: true, // <<< clave: sólo activos
+        ...(excludeId ? { id_periodo: { [Op.ne]: excludeId } } : {}),
+        [Op.and]: [
+        { fecha_inicio: { [Op.lte]: fecha_fin } },
+        { fecha_fin: { [Op.gte]: fecha_inicio } },
+        ],
+    };
+    const choque = await PeriodoContable.findOne({ where, transaction });
+    return !!choque;
+}
 
 export async function createPeriodo(data) {
     if (new Date(data.fecha_fin) < new Date(data.fecha_inicio)) {
@@ -7,13 +31,44 @@ export async function createPeriodo(data) {
         err.status = 400;
         throw err;
     }
+
     const emp = await Empresa.findByPk(data.id_empresa);
     if (!emp) {
         const err = new Error('Empresa no encontrada');
         err.status = 404;
         throw err;
     }
-    return PeriodoContable.create(data);
+
+    const t = await sequelize.transaction();
+    try {
+        const haySolape = await existeSolapePeriodo({
+        id_empresa: data.id_empresa,
+        id_ejercicio: data.id_ejercicio,
+        fecha_inicio: data.fecha_inicio,
+        fecha_fin: data.fecha_fin,
+        transaction: t,
+        });
+        if (haySolape) {
+        const err = new Error('El periodo se solapa con otro existente activo en el mismo ejercicio');
+        err.status = 409;
+        throw err;
+        }
+
+        const payload = {
+        ...data,
+        periodo_daterange:
+            data.periodo_daterange ??
+            Sequelize.literal(`daterange('${data.fecha_inicio}'::date,'${data.fecha_fin}'::date,'[]')`),
+        ...(typeof data.esta_abierto === 'undefined' ? { esta_abierto: true } : {}),
+        };
+
+        const creado = await PeriodoContable.create(payload, { transaction: t });
+        await t.commit();
+        return creado;
+    } catch (e) {
+        await t.rollback();
+        throw e;
+    }
 }
 
 export const getPeriodo = (id) =>
@@ -22,31 +77,101 @@ export const getPeriodo = (id) =>
 export const listPeriodos = (filters = {}) => {
     const where = {};
     if (filters.id_empresa) where.id_empresa = filters.id_empresa;
+    if (filters.id_ejercicio) where.id_ejercicio = filters.id_ejercicio;
     if (filters.tipo_periodo) where.tipo_periodo = filters.tipo_periodo;
     if (typeof filters.esta_abierto !== 'undefined') where.esta_abierto = filters.esta_abierto;
+
     if (filters.desde || filters.hasta) {
         const desde = filters.desde ? new Date(filters.desde) : null;
         const hasta = filters.hasta ? new Date(filters.hasta) : null;
-        if (desde && hasta) where.fecha_inicio = { [Op.between]: [desde, hasta] };
+        if (desde && hasta) {
+        where[Op.and] = [
+            { fecha_inicio: { [Op.lte]: hasta } },
+            { fecha_fin: { [Op.gte]: desde } },
+        ];
+        } else if (desde) {
+        where.fecha_fin = { [Op.gte]: desde };
+        } else if (hasta) {
+        where.fecha_inicio = { [Op.lte]: hasta };
+        }
     }
-    return PeriodoContable.findAll({ where, order: [['fecha_inicio','DESC'], ['id_periodo','DESC']] });
+
+    return PeriodoContable.findAll({
+        where,
+        order: [['fecha_inicio', 'DESC'], ['id_periodo', 'DESC']],
+    });
 };
 
 export async function updatePeriodo(id, updates) {
     const item = await PeriodoContable.findByPk(id);
     if (!item) return null;
-    if (updates.fecha_inicio && updates.fecha_fin) {
-        if (new Date(updates.fecha_fin) < new Date(updates.fecha_inicio)) {
+
+    const nueva_fecha_inicio = updates.fecha_inicio ?? item.fecha_inicio;
+    const nueva_fecha_fin = updates.fecha_fin ?? item.fecha_fin;
+    const nuevo_id_empresa = updates.id_empresa ?? item.id_empresa;
+    const nuevo_id_ejercicio = updates.id_ejercicio ?? item.id_ejercicio;
+
+    if (new Date(nueva_fecha_fin) < new Date(nueva_fecha_inicio)) {
         const err = new Error('fecha_fin no puede ser menor a fecha_inicio');
         err.status = 400;
         throw err;
-        }
     }
-    await item.update(updates);
-    return item;
+
+    const t = await sequelize.transaction();
+    try {
+        const cambiaFechas =
+        typeof updates.fecha_inicio !== 'undefined' ||
+        typeof updates.fecha_fin !== 'undefined';
+        const cambiaAmbito =
+        typeof updates.id_empresa !== 'undefined' ||
+        typeof updates.id_ejercicio !== 'undefined';
+
+        if (cambiaFechas || cambiaAmbito) {
+        const haySolape = await existeSolapePeriodo({
+            id_empresa: nuevo_id_empresa,
+            id_ejercicio: nuevo_id_ejercicio,
+            fecha_inicio: nueva_fecha_inicio,
+            fecha_fin: nueva_fecha_fin,
+            excludeId: id,
+            transaction: t,
+        });
+        if (haySolape) {
+            const err = new Error('El periodo actualizado se solapa con otro existente activo en el mismo ejercicio');
+            err.status = 409;
+            throw err;
+        }
+        }
+
+        const payload = {
+        ...updates,
+        ...(cambiaFechas
+            ? {
+                periodo_daterange: Sequelize.literal(
+                `daterange('${nueva_fecha_inicio}'::date,'${nueva_fecha_fin}'::date,'[]')`
+                ),
+            }
+            : {}),
+        };
+
+        await item.update(payload, { transaction: t });
+        await t.commit();
+        return item;
+    } catch (e) {
+        await t.rollback();
+        throw e;
+    }
 }
 
+/** Soft delete: marca inactivo (permite recrear mismo rango después) */
 export async function deletePeriodo(id) {
+    const item = await PeriodoContable.findByPk(id);
+    if (!item) return null;
+    await item.update({ esta_abierto: false });
+    return true;
+}
+
+/** Hard delete: elimina físicamente el registro */
+export async function destroyPeriodo(id) {
     const item = await PeriodoContable.findByPk(id);
     if (!item) return null;
     await item.destroy();
