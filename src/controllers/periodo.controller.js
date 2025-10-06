@@ -1,5 +1,5 @@
 import { validationResult } from 'express-validator';
-import { createPeriodo, getPeriodo, listPeriodos, updatePeriodo, deletePeriodo } from '../services/periodo.service.js';
+import { createPeriodo, getPeriodo, listPeriodos, updatePeriodo, deletePeriodo, destroyPeriodo } from '../services/periodo.service.js';
 
 export async function createPeriodoCtrl(req, res, next) {
     try {
@@ -45,6 +45,14 @@ export async function deletePeriodoCtrl(req, res, next) {
     try {
         const ok = await deletePeriodo(req.params.id);
         if (!ok) return res.status(404).json({ message: 'No encontrado' });
-        res.json({ message: 'Periodo eliminado' });
+        res.json({ message: 'Periodo desactivado' });
+    } catch (e) { next(e); }
+}
+
+export async function destroyPeriodoCtrl(req, res, next) {
+    try {
+        const ok = await destroyPeriodo(req.params.id);
+        if(!ok) return res.status(404).json({ message: 'No encontrado' });
+        res.json({ message: 'Periodo eliminado' })
     } catch (e) { next(e); }
 }

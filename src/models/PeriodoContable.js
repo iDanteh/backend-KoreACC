@@ -8,7 +8,7 @@ PeriodoContable.init({
     id_empresa: { type: DataTypes.INTEGER, allowNull: false },
     id_ejercicio: { type: DataTypes.INTEGER, allowNull: false},
     tipo_periodo: {
-        type: DataTypes.ENUM('SEMANAL','MENSUAL','ANUAL','PERSONALIZADO'),
+        type: DataTypes.ENUM('SEMANAL','QUINCENAL','MENSUAL','ANUAL','PERSONALIZADO'),
         allowNull: false,
     },
     fecha_inicio: { type: DataTypes.DATEONLY, allowNull: false },
