@@ -7,6 +7,7 @@ import { Empresa } from './Empresa.js';
 import { PeriodoContable } from './PeriodoContable.js';
 import { Impuesto } from './Impuesto.js';
 import { EjercicioContable } from './Ejercicio.js'
+import Cuenta from './Cuenta.js';
 import { CentroCosto } from './CentroCosto.js';
 
 // Usuario <-> Rol (N:M)
@@ -51,4 +52,4 @@ EjercicioContable.hasMany(PeriodoContable, { foreignKey: 'id_ejercicio' });
 PeriodoContable.belongsTo(EjercicioContable, { foreignKey: 'id_ejercicio' });
 
 
-export { Usuario, Rol, Permiso, UsuarioRol, RolPermiso, Empresa, PeriodoContable, Impuesto, EjercicioContable, CentroCosto };
+export { Usuario, Rol, Permiso, UsuarioRol, RolPermiso, Empresa, PeriodoContable, Impuesto, EjercicioContable, CentroCosto, Cuenta };
