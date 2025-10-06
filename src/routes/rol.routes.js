@@ -6,7 +6,7 @@ import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 
 const router = Router();
 
-router.get( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(), authorizeRoles('Administrador', 'Contador', 'Auditor'),
+router.get( '/', authenticateJWT, ensureNotRevoked, requireFreshPassword(), 
     [
         query('q').optional().isString().trim(),
         query('activo').optional().isBoolean().toBoolean(),
