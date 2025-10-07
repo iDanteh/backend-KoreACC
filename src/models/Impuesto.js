@@ -49,7 +49,15 @@ Impuesto.init({
     vigencia_inicio: { type: DataTypes.DATEONLY, allowNull: false },
     vigencia_fin: { type: DataTypes.DATEONLY, allowNull: true },
     vigencia_daterange: { type: DataTypes.RANGE(DataTypes.DATEONLY), allowNull: false },
-    cuenta_relacionada: { type: DataTypes.STRING(255), allowNull: true },
+    cuenta_relacionada: { 
+    type: DataTypes.STRING(255), 
+    allowNull: true,
+        set(v) {
+            if (v === undefined || v === null) return this.setDataValue('cuenta_relacionada', null);
+            const t = String(v).trim();
+            this.setDataValue('cuenta_relacionada', t.length ? t : null);
+        }
+    },
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     }, {
