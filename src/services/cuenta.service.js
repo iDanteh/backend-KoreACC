@@ -6,11 +6,13 @@
      return await Cuenta.create(data);
    }
 
-   async listar() {
-    return await Cuenta.findAll({ where: { deleted: false } });
-    // defaultScope ya filtra deleted=false
-    return await Cuenta.findAll();
-   }
+   async listar(includeChildren = false) {
+    const options = {};
+    if (includeChildren) {
+      options.include = [{ model: Cuenta, as: "hijos", include: [{ model: Cuenta, as: "hijos" }] }];
+    }
+    return await Cuenta.findAll(options);
+  }
 
    async obtenerPorId(id) {
     return await Cuenta.findOne({ where: { id } });

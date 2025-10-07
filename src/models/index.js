@@ -51,5 +51,10 @@ EjercicioContable.belongsTo(Empresa, { foreignKey: 'id_empresa' });
 EjercicioContable.hasMany(PeriodoContable, { foreignKey: 'id_ejercicio' });
 PeriodoContable.belongsTo(EjercicioContable, { foreignKey: 'id_ejercicio' });
 
+// Cuenta <-> Impuesto (1:N) usando codigo como targetKey
+Cuenta.hasMany(Impuesto, {as: 'impuestos', foreignKey: { name: 'cuenta_relacionada', allowNull: true }, sourceKey: 'codigo', onDelete: 'SET NULL', onUpdate: 'CASCADE',
+});
+Impuesto.belongsTo(Cuenta, {as: 'cuenta', foreignKey: { name: 'cuenta_relacionada', allowNull: true }, targetKey: 'codigo',});
+
 
 export { Usuario, Rol, Permiso, UsuarioRol, RolPermiso, Empresa, PeriodoContable, Impuesto, EjercicioContable, CentroCosto, Cuenta };
