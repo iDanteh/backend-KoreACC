@@ -1,31 +1,29 @@
+import { sequelize } from '../config/db.js';
 import { Impuesto, Empresa, Cuenta } from '../models/index.js';
-import { Op } from 'sequelize';
+import { Op, col } from 'sequelize';
 
 // --- helpers ---
-function normCuentaRel(v) {
-    if (v === undefined || v === null) return null;
-    const t = String(v).trim();
-    return t.length ? t : null;
-}
 function enforceBusinessRules(data) {
     // Modo / tasa / cuota coherentes
     if (data.modo === 'TASA') {
-        if (data.tasa === null || data.tasa === undefined)
+        if (data.tasa === null || data.tasa === undefined) {
         throw Object.assign(new Error('tasa requerida cuando modo=TASA'), { status: 400 });
-        // limpiar cuota si vino
+        }
         if ('cuota' in data) data.cuota = null;
     } else if (data.modo === 'CUOTA') {
-        if (data.cuota === null || data.cuota === undefined)
+        if (data.cuota === null || data.cuota === undefined) {
         throw Object.assign(new Error('cuota requerida cuando modo=CUOTA'), { status: 400 });
+        }
         if ('tasa' in data) data.tasa = null;
     } else if (data.modo === 'EXENTO') {
-        // nada de tasa/cuota
         if ('tasa' in data) data.tasa = null;
         if ('cuota' in data) data.cuota = null;
     }
+
     // Fechas coherentes
-    if (data.vigencia_fin && new Date(data.vigencia_fin) < new Date(data.vigencia_inicio))
+    if (data.vigencia_fin && new Date(data.vigencia_fin) < new Date(data.vigencia_inicio)) {
         throw Object.assign(new Error('vigencia_fin no puede ser menor a vigencia_inicio'), { status: 400 });
+    }
 }
 
 async function assertEmpresa(id_empresa) {
@@ -33,11 +31,11 @@ async function assertEmpresa(id_empresa) {
     if (!emp) throw Object.assign(new Error('Empresa no encontrada'), { status: 404 });
 }
 
-async function assertCuentaCodigoExists(codigo) {
-    if (!codigo) return;
-    const existe = await Cuenta.findOne({ where: { codigo } });
-    if (!existe) {
-        const e = new Error(`No existe la Cuenta con codigo='${codigo}'`);
+async function assertCuentaIdExists(id_cuenta) {
+    if (id_cuenta == null) return;
+    const cta = await Cuenta.findByPk(id_cuenta);
+    if (!cta) {
+        const e = new Error(`No existe la Cuenta con id=${id_cuenta}`);
         e.status = 400;
         throw e;
     }
@@ -45,10 +43,10 @@ async function assertCuentaCodigoExists(codigo) {
 
 // --- create ---
 export async function createImpuesto(data) {
-    data.cuenta_relacionada = normCuentaRel(data.cuenta_relacionada);
     enforceBusinessRules(data);
     await assertEmpresa(data.id_empresa);
-    await assertCuentaCodigoExists(data.cuenta_relacionada);
+    await assertCuentaIdExists(data.id_cuenta);
+
     const imp = await Impuesto.create(data);
     return Impuesto.findByPk(imp.id_impuesto, {
         include: [{ model: Cuenta, as: 'cuenta' }],
@@ -57,33 +55,42 @@ export async function createImpuesto(data) {
 
 // --- read one ---
 export const getImpuesto = (id) =>
-    Impuesto.findByPk(id, { include: [{ model: Empresa }, { model: Cuenta, as: 'cuenta' }] });
+    Impuesto.findByPk(id, {
+        include: [{ model: Empresa }, { model: Cuenta, as: 'cuenta' }],
+    });
 
 // --- list ---
-export const listImpuestos = (filters = {}) => {
+export const listImpuestos = async (filters = {}) => {
     const where = {};
     if (filters.id_empresa) where.id_empresa = filters.id_empresa;
     if (filters.tipo) where.tipo = filters.tipo;
     if (filters.aplica_en) where.aplica_en = filters.aplica_en;
 
-    const includeCuenta = String(filters.includeCuenta) === 'true';
-    const include = includeCuenta ? [{ model: Cuenta, as: 'cuenta', required: false }] : [];
-
+    const like = Op.iLike;
     if (filters.q) {
-        const like = Op.iLike;
         where[Op.or] = [
         { nombre: { [like]: `%${filters.q}%` } },
-        { cuenta_relacionada: { [like]: `%${filters.q}%` } },
+        { '$cuenta.codigo$': { [like]: `%${filters.q}%` } },
+        { '$cuenta.nombre$': { [like]: `%${filters.q}%` } },
+        { '$Empresa.nombre$': { [like]: `%${filters.q}%` } },
         ];
-        if (includeCuenta) {
-        where[Op.or].push({ '$cuenta.codigo$': { [like]: `%${filters.q}%` } });
-        }
     }
 
     return Impuesto.findAll({
         where,
-        include,
+        attributes: {
+        include: [
+            [col('Empresa.rfc'), 'empresa_rfc'],
+            [col('cuenta.codigo'), 'cuenta_codigo'],
+            [col('cuenta.nombre'), 'cuenta_nombre'],
+        ],
+        },
+        include: [
+        { model: Empresa, attributes: [] },
+        { model: Cuenta, as: 'cuenta', attributes: [] },
+        ],
         order: [['id_impuesto', 'ASC']],
+        subQuery: false,
     });
 };
 
@@ -92,20 +99,24 @@ export async function updateImpuesto(id, updates) {
     const item = await Impuesto.findByPk(id);
     if (!item) return null;
 
-    if ('cuenta_relacionada' in updates) {
-        updates.cuenta_relacionada = normCuentaRel(updates.cuenta_relacionada);
-        await assertCuentaCodigoExists(updates.cuenta_relacionada);
+    if ('id_cuenta' in updates) {
+        if (updates.id_cuenta !== null) {
+        await assertCuentaIdExists(updates.id_cuenta);
+        }
     }
 
     const merged = { ...item.toJSON(), ...updates };
     enforceBusinessRules(merged);
+
     if (updates.vigencia_inicio && merged.vigencia_fin) {
-        if (new Date(merged.vigencia_fin) < new Date(updates.vigencia_inicio))
+        if (new Date(merged.vigencia_fin) < new Date(updates.vigencia_inicio)) {
         throw Object.assign(new Error('vigencia_fin no puede ser menor a vigencia_inicio'), { status: 400 });
+        }
     }
     if (updates.vigencia_fin && merged.vigencia_inicio) {
-        if (new Date(updates.vigencia_fin) < new Date(merged.vigencia_inicio))
+        if (new Date(updates.vigencia_fin) < new Date(merged.vigencia_inicio)) {
         throw Object.assign(new Error('vigencia_fin no puede ser menor a vigencia_inicio'), { status: 400 });
+        }
     }
 
     await item.update(updates);
