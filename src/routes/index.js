@@ -13,6 +13,7 @@ import centroCostoRoutes from './centro-costo.routes.js';
 import tipoPoliza from './tipoPoliza.routes.js';
 import poliza from './poliza.routes.js';
 import movimientoPoliza from './movimientoPoliza.routes.js';
+import cfdi from './cfdi.routes.js';
 
 const router = Router();
 
@@ -32,5 +33,7 @@ router.use('/centros', centroCostoRoutes);
 router.use('/tipo-poliza', tipoPoliza);
 router.use('/poliza', poliza);
 router.use('/movimiento-poliza', movimientoPoliza);
+
+router.use('/cfdi', cfdi);
 
 export default router;

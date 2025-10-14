@@ -1,6 +1,8 @@
 import { Op } from 'sequelize';
 import * as Models from '../models/index.js';
-import { validateMovimientosPoliza, httpError } from '../utils/helper-poliza.js'
+import { validateMovimientosPoliza, httpError } from '../utils/helper-poliza.js';
+import { importCfdiXml } from './cfdi.service.js';
+import { linkUuidToMovimientos } from './movimientos-uuid.service.js';
 
 const {
     sequelize,
@@ -19,11 +21,53 @@ async function ensureExists(Model, id, name) {
     if (!found) throw httpError(`${name} no encontrado`, 404);
 }
 
-export async function getPoliza(id_poliza, { includeMovimientos = false } = {}) {
+export async function getPoliza(
+    id_poliza,
+    { includeMovimientos = false, withFk = true } = {}
+    ) {
     const include = [];
-    if (includeMovimientos) include.push({ model: MovimientoPoliza, as: 'movimientos' });
 
-    const pol = await Poliza.findByPk(id_poliza, { include });
+    // FKs directas de la póliza
+    if (withFk) {
+        include.push(
+        { model: TipoPoliza,      as: 'tipo',    attributes: ['id_tipopoliza','naturaleza','descripcion'] },
+        { model: PeriodoContable, as: 'periodo', attributes: ['id_periodo','tipo_periodo','fecha_inicio','fecha_fin','esta_abierto'] },
+        { model: Usuario,         as: 'creador', attributes: ['id_usuario','nombre','apellido_p','apellido_m','correo','usuario','estatus'] },
+        { model: CentroCosto,     as: 'centro',  attributes: ['id_centro','serie_venta','nombre_centro','region'] },
+        );
+    }
+
+    // Movimientos (y su FK a Cuenta)
+    if (includeMovimientos) {
+        const movInclude = {
+        model: MovimientoPoliza,
+        as: 'movimientos',
+        attributes: [
+            'id_movimiento','id_cuenta','operacion','monto','fecha',
+            'ref_serie_venta','cliente','cc','uuid','created_at','updated_at'
+        ],
+        include: []
+        };
+
+        if (withFk) {
+        movInclude.include.push({
+            model: Cuenta,
+            as: 'cuenta',
+            attributes: ['id','codigo','nombre']
+        });
+        }
+
+        include.push(movInclude);
+    }
+
+    const pol = await Poliza.findByPk(id_poliza, {
+        attributes: [
+        'id_poliza','id_tipopoliza','id_periodo','id_usuario','id_centro',
+        'folio','concepto','estado','fecha_creacion','created_at','updated_at'
+        ],
+        include
+    });
+
     if (!pol) throw httpError('Póliza no encontrada', 404);
     return pol;
 }
@@ -67,6 +111,24 @@ export async function listPolizas({
     const include = includeMovimientos ? [{ model: MovimientoPoliza, as: 'movimientos' }] : [];
     const { rows, count } = await Poliza.findAndCountAll({ where, order, limit, offset, include });
     return { data: rows, total: count, page: +page, pageSize: limit };
+}
+
+
+// Nuevo wrapper (opcional) que acepta { xml, linkMovimientoIds }
+export async function createPolizaWithXml(payload, { movimientos = [], xml, linkMovimientoIds = [] } = {}) {
+    const pol = await createPoliza(payload, { movimientos });
+
+    if (xml) {
+        const { uuid } = await importCfdiXml(xml);
+
+        if (linkMovimientoIds?.length) {
+        await linkUuidToMovimientos({ id_poliza: pol.id_poliza, uuid, movimiento_ids: linkMovimientoIds });
+        }
+
+        return { ...pol.get({ plain: true }), uuid };
+    }
+
+    return pol;
 }
 
 export async function createPoliza(payload, { movimientos = [] } = {}) {

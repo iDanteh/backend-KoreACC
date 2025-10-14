@@ -9,6 +9,7 @@ Poliza.init({
     id_periodo: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'periodo_contable', key: 'id_periodo' } },
     id_usuario: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'usuario', key: 'id_usuario' } },
     id_centro: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'centro_costo', key: 'id_centro' } },
+    folio: { type: DataTypes.STRING, allowNull: false },
     concepto: { type: DataTypes.STRING, allowNull: false, },
     estado: { type: DataTypes.ENUM('Por revisar', 'Revisada', 'Contabilizada'), allowNull: false, defaultValue: 'Por revisar' },
     fecha_creacion: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },

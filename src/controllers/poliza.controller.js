@@ -13,7 +13,8 @@ export const createPoliza = async (req, res, next) => {
 export const getPoliza = async (req, res, next) => {
     try {
         const includeMovimientos = req.query.includeMovimientos === 'true';
-        const result = await polizaService.getPoliza(req.params.id, { includeMovimientos });
+        const withFk = req.query.withFk === 'true';
+        const result = await polizaService.getPoliza(req.params.id, { includeMovimientos, withFk });
         res.json(result);
     } catch (err) {
         next(err);
