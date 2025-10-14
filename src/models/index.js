@@ -13,6 +13,9 @@ import { CentroCosto } from './CentroCosto.js';
 import { TipoPoliza } from './TipoPoliza.js';
 import { Poliza } from './Poliza.js';
 import { MovimientoPoliza } from './MovimientosPoliza.js';
+import { CfdiComprobante } from './cfdi_comprobante.model.js';
+import { CfdiConcepto } from './cfdi_concepto.model.js';
+import { CfdiTraslado } from './cfdi_traslado.model.js';
 
 // Usuario <-> Rol (N:M)
 Usuario.belongsToMany(Rol, {
@@ -96,7 +99,15 @@ MovimientoPoliza.belongsTo(Poliza, { foreignKey: 'id_poliza', as: 'poliza' });
 Cuenta.hasMany(MovimientoPoliza, { foreignKey: 'id_cuenta', as: 'movimientos' });
 MovimientoPoliza.belongsTo(Cuenta, { foreignKey: 'id_cuenta', as: 'cuenta' });
 
+// Información del XML
+CfdiComprobante.hasMany(CfdiConcepto, { foreignKey: 'uuid', sourceKey: 'uuid', as: 'conceptos' });
+CfdiConcepto.belongsTo(CfdiComprobante, { foreignKey: 'uuid', targetKey: 'uuid', as: 'comprobante' });
+
+CfdiConcepto.hasMany(CfdiTraslado, { foreignKey: 'id_concepto', as: 'traslados' });
+CfdiTraslado.belongsTo(CfdiConcepto, { foreignKey: 'id_concepto', as: 'concepto' });
+
 export { sequelize, Usuario, Rol, Permiso, UsuarioRol, 
     RolPermiso, Empresa, PeriodoContable, 
     Impuesto, EjercicioContable, CentroCosto, 
-    Cuenta, TipoPoliza, Poliza, MovimientoPoliza };
+    Cuenta, TipoPoliza, Poliza, MovimientoPoliza, CfdiComprobante,
+    CfdiConcepto, CfdiTraslado };
