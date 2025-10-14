@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { env } from './config/env.js';
 import { sequelize } from './config/db.js';
 import './models/index.js'; // registra asociaciones
+import {notFoundHandler, errorHandler} from './middlewares/errors.js';
 
 import apiV1 from './routes/index.js';
 
@@ -32,11 +33,8 @@ app.use('/api/v1', apiV1);
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 // Manejo de errores
-// (Express 5 ya propaga errores async)
-app.use((err, _req, res, _next) => {
-  console.error(err);
-  res.status(500).json({ message: 'Error interno' });
-});
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // Start + sync DB (crea/actualiza tablas al correr el proyecto)
 async function start() {

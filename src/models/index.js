@@ -1,3 +1,4 @@
+import { sequelize } from '../config/db.js';
 import { Usuario } from './Usuario.js';
 import { Rol } from './Rol.js';
 import { Permiso } from './Permiso.js';
@@ -9,6 +10,9 @@ import { Impuesto } from './Impuesto.js';
 import { EjercicioContable } from './Ejercicio.js'
 import Cuenta from './Cuenta.js';
 import { CentroCosto } from './CentroCosto.js';
+import { TipoPoliza } from './TipoPoliza.js';
+import { Poliza } from './Poliza.js';
+import { MovimientoPoliza } from './MovimientosPoliza.js';
 
 // Usuario <-> Rol (N:M)
 Usuario.belongsToMany(Rol, {
@@ -51,7 +55,6 @@ EjercicioContable.belongsTo(Empresa, { foreignKey: 'id_empresa' });
 EjercicioContable.hasMany(PeriodoContable, { foreignKey: 'id_ejercicio' });
 PeriodoContable.belongsTo(EjercicioContable, { foreignKey: 'id_ejercicio' });
 
-
 // Cuenta <-> Impuesto (1:N) usando id_cuenta como FK
 Cuenta.hasMany(Impuesto, {
         as: 'impuestos',
@@ -64,4 +67,36 @@ Impuesto.belongsTo(Cuenta, {
         foreignKey: { name: 'id_cuenta', allowNull: true },
     });
 
-export { Usuario, Rol, Permiso, UsuarioRol, RolPermiso, Empresa, PeriodoContable, Impuesto, EjercicioContable, CentroCosto, Cuenta };
+// TipoPoliza <-> Poliza (1:N)
+TipoPoliza.hasMany(Poliza, { foreignKey: 'id_tipopoliza' });
+Poliza.belongsTo(TipoPoliza, { foreignKey: 'id_tipopoliza' });
+
+// PeriodoContable <-> Poliza (1:N)
+PeriodoContable.hasMany(Poliza, { foreignKey: 'id_periodo' });
+Poliza.belongsTo(PeriodoContable, { foreignKey: 'id_periodo' });
+
+// Usuario <-> Poliza (1:N)
+Usuario.hasMany(Poliza, { foreignKey: 'id_usuario' });
+Poliza.belongsTo(Usuario, { foreignKey: 'id_usuario' });
+
+// CentroCosto <-> Poliza (1:N)
+CentroCosto.hasMany(Poliza, { foreignKey: 'id_centro' });
+Poliza.belongsTo(CentroCosto, { foreignKey: 'id_centro' });
+
+// Poliza <-> MovimientoPoliza (1:N)
+Poliza.hasMany(MovimientoPoliza, {
+    foreignKey: 'id_poliza',
+    as: 'movimientos',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+});
+MovimientoPoliza.belongsTo(Poliza, { foreignKey: 'id_poliza', as: 'poliza' });
+
+// Cuenta <-> MovimientoPoliza (1:N)
+Cuenta.hasMany(MovimientoPoliza, { foreignKey: 'id_cuenta', as: 'movimientos' });
+MovimientoPoliza.belongsTo(Cuenta, { foreignKey: 'id_cuenta', as: 'cuenta' });
+
+export { sequelize, Usuario, Rol, Permiso, UsuarioRol, 
+    RolPermiso, Empresa, PeriodoContable, 
+    Impuesto, EjercicioContable, CentroCosto, 
+    Cuenta, TipoPoliza, Poliza, MovimientoPoliza };
