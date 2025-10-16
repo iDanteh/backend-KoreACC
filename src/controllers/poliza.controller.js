@@ -23,7 +23,16 @@ export const getPoliza = async (req, res, next) => {
 
 export const listPolizas = async (req, res, next) => {
     try {
-        const result = await polizaService.listPolizas(req.query);
+        const withFk    = req.query.withFk !== 'false';
+        const flatten   = req.query.flatten !== 'false';
+        const includeMovimientos = req.query.includeMovimientos === 'true';
+
+        const result = await polizaService.listPolizas({
+        ...req.query,
+        withFk,
+        flatten,
+        includeMovimientos,
+        });
         res.json(result);
     } catch (err) {
         next(err);
