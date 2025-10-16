@@ -18,7 +18,10 @@ MovimientoPoliza.init({
     monto: { type: DataTypes.DECIMAL(14, 4), allowNull: false },
     cliente: { type: DataTypes.STRING(255), allowNull: true },
     cc: { type: DataTypes.INTEGER, allowNull: false },
-    uuid: { type: DataTypes.UUID, allowNull: true },
+    uuid: { type: DataTypes.UUID, allowNull: true, unique: true, references: { model: 'cfdi_comprobante', key: 'uuid' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE' 
+    },
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     },

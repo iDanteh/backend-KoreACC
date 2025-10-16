@@ -71,20 +71,20 @@ Impuesto.belongsTo(Cuenta, {
     });
 
 // TipoPoliza <-> Poliza (1:N)
-TipoPoliza.hasMany(Poliza, { foreignKey: 'id_tipopoliza' });
-Poliza.belongsTo(TipoPoliza, { foreignKey: 'id_tipopoliza' });
+TipoPoliza.hasMany(Poliza, { foreignKey: 'id_tipopoliza', as: 'polizas' });
+Poliza.belongsTo(TipoPoliza, { foreignKey: 'id_tipopoliza', as: 'tipo' });
 
 // PeriodoContable <-> Poliza (1:N)
-PeriodoContable.hasMany(Poliza, { foreignKey: 'id_periodo' });
-Poliza.belongsTo(PeriodoContable, { foreignKey: 'id_periodo' });
+PeriodoContable.hasMany(Poliza, { foreignKey: 'id_periodo', as: 'polizas' });
+Poliza.belongsTo(PeriodoContable, { foreignKey: 'id_periodo', as: 'periodo' });
 
 // Usuario <-> Poliza (1:N)
-Usuario.hasMany(Poliza, { foreignKey: 'id_usuario' });
-Poliza.belongsTo(Usuario, { foreignKey: 'id_usuario' });
+Usuario.hasMany(Poliza, { foreignKey: 'id_usuario', as: 'polizasCreadas' });
+Poliza.belongsTo(Usuario, { foreignKey: 'id_usuario', as: 'creador' });
 
 // CentroCosto <-> Poliza (1:N)
-CentroCosto.hasMany(Poliza, { foreignKey: 'id_centro' });
-Poliza.belongsTo(CentroCosto, { foreignKey: 'id_centro' });
+CentroCosto.hasMany(Poliza, { foreignKey: 'id_centro', as: 'polizas' });
+Poliza.belongsTo(CentroCosto, { foreignKey: 'id_centro', as: 'centro' });
 
 // Poliza <-> MovimientoPoliza (1:N)
 Poliza.hasMany(MovimientoPoliza, {
@@ -98,6 +98,9 @@ MovimientoPoliza.belongsTo(Poliza, { foreignKey: 'id_poliza', as: 'poliza' });
 // Cuenta <-> MovimientoPoliza (1:N)
 Cuenta.hasMany(MovimientoPoliza, { foreignKey: 'id_cuenta', as: 'movimientos' });
 MovimientoPoliza.belongsTo(Cuenta, { foreignKey: 'id_cuenta', as: 'cuenta' });
+
+CfdiComprobante.hasOne(MovimientoPoliza, { foreignKey: 'uuid', sourceKey: 'uuid', as: 'movimiento' });
+MovimientoPoliza.belongsTo(CfdiComprobante, { foreignKey: 'uuid', targetKey: 'uuid', as: 'cfdi' });
 
 // Información del XML
 CfdiComprobante.hasMany(CfdiConcepto, { foreignKey: 'uuid', sourceKey: 'uuid', as: 'conceptos' });

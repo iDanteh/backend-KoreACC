@@ -85,6 +85,8 @@ export async function listPolizas({
     q, // busca en folio / concepto
     order = [['fecha_creacion', 'DESC'], ['id_poliza', 'DESC']],
     includeMovimientos = false,
+    withFk = true,
+    flatten = true,
     } = {}) {
     const where = {};
     if (id_tipopoliza) where.id_tipopoliza = id_tipopoliza;
@@ -98,6 +100,7 @@ export async function listPolizas({
         if (fecha_desde) where.fecha_creacion[Op.gte] = fecha_desde;
         if (fecha_hasta) where.fecha_creacion[Op.lte] = fecha_hasta;
     }
+
     if (q) {
         where[Op.or] = [
         { folio: { [Op.iLike]: `%${q}%` } },
@@ -108,11 +111,68 @@ export async function listPolizas({
     const limit = Math.min(+pageSize || 20, 200);
     const offset = Math.max(+page - 1, 0) * limit;
 
-    const include = includeMovimientos ? [{ model: MovimientoPoliza, as: 'movimientos' }] : [];
-    const { rows, count } = await Poliza.findAndCountAll({ where, order, limit, offset, include });
+    // ---- includes de FKs (anidados) ----
+    const include = [];
+    if (withFk) {
+        include.push(
+        { model: TipoPoliza,      as: 'tipo',    attributes: [] },
+        { model: PeriodoContable, as: 'periodo', attributes: [] },
+        { model: Usuario,         as: 'creador', attributes: [] },
+        { model: CentroCosto,     as: 'centro',  attributes: [] },
+        );
+    }
+    if (includeMovimientos) {
+        include.push({
+        model: MovimientoPoliza,
+        as: 'movimientos',
+        attributes: ['id_movimiento','id_cuenta','operacion','monto','fecha','uuid','created_at','updated_at'],
+        include: withFk ? [{ model: Cuenta, as: 'cuenta', attributes: ['id','codigo','nombre'] }] : [],
+        });
+    }
+
+    //atributos base de la póliza
+    const baseAttributes = [
+        'id_poliza','id_tipopoliza','id_periodo','id_usuario','id_centro',
+        'folio','concepto','estado','fecha_creacion','created_at','updated_at'
+    ];
+
+    //proyección “plana” de columnas de las FKs
+    const flatAttributes = withFk && flatten ? [
+        [sequelize.col('tipo.naturaleza'),        'tipo_naturaleza'],
+        [sequelize.col('tipo.descripcion'),       'tipo_descripcion'],
+        [sequelize.col('periodo.id_periodo'),     'periodo_id'],
+        [sequelize.col('periodo.tipo_periodo'),   'periodo_tipo'],
+        [sequelize.col('periodo.fecha_inicio'),   'periodo_inicio'],
+        [sequelize.col('periodo.fecha_fin'),      'periodo_fin'],
+        [sequelize.col('periodo.esta_abierto'),   'periodo_abierto'],
+        [sequelize.col('creador.id_usuario'),     'creador_id'],
+        [sequelize.col('creador.nombre'),         'creador_nombre'],
+        [sequelize.col('creador.apellido_p'),     'creador_apellido_p'],
+        [sequelize.col('creador.apellido_m'),     'creador_apellido_m'],
+        [sequelize.col('creador.correo'),         'creador_correo'],
+        [sequelize.col('centro.id_centro'),       'centro_id'],
+        [sequelize.col('centro.serie_venta'),     'centro_serie_venta'],
+        [sequelize.col('centro.nombre_centro'),   'centro_nombre'],
+        [sequelize.col('centro.region'),          'centro_region'],
+    ] : [];
+
+    const { rows, count } = await Poliza.findAndCountAll({
+        where,
+        order,
+        limit,
+        offset,
+        include,
+        attributes: {
+        include: flatAttributes
+        },
+        // Evita subquery cuando pagina con includes; mejora compatibilidad con col()
+        subQuery: false,
+        // Necesario si hay hasMany para que el count no explote por duplicados
+        distinct: true,
+    });
+
     return { data: rows, total: count, page: +page, pageSize: limit };
 }
-
 
 // Nuevo wrapper (opcional) que acepta { xml, linkMovimientoIds }
 export async function createPolizaWithXml(payload, { movimientos = [], xml, linkMovimientoIds = [] } = {}) {
@@ -162,6 +222,12 @@ export async function createPoliza(payload, { movimientos = [] } = {}) {
             if (Cuenta && m.id_cuenta) {
             const cuenta = await Cuenta.findByPk(m.id_cuenta, { transaction: t });
             if (!cuenta) throw httpError('Cuenta no encontrada', 404);
+            }
+            if (m.uuid) {
+                const cfdi = await CfdiComprobante.findOne({ where: { uuid: m.uuid }, transaction: t, lock: t.LOCK.UPDATE });
+                if (!cfdi) throw httpError('CFDI no encontrado', 404);
+                if (cfdi.esta_asociado) throw httpError('CFDI ya está asociado a otro movimiento', 409);
+                await cfdi.update({ esta_asociado: true, updated_at: new Date() }, { transaction: t });
             }
         }
 
