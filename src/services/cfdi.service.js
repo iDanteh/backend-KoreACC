@@ -5,10 +5,10 @@ import { CfdiComprobante, CfdiConcepto, CfdiTraslado } from '../models/index.js'
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '',
-  removeNSPrefix: true,   // cfdi:, tfd: → sin prefijo
+  removeNSPrefix: true,
   allowBooleanAttributes: true,
   parseTagValue: false,
-  processEntities: true,  // maneja &quot; &amp; etc.
+  processEntities: true,
 });
 
 const ensureArray = x => Array.isArray(x) ? x : (x ? [x] : []);
@@ -64,7 +64,7 @@ export async function importCfdiXml(xml, { replaceConcepts = true, storeXml = tr
         clave_prod_serv: c.ClaveProdServ ?? null,
         no_identificacion: c.NoIdentificacion ?? null,
         cantidad: c.Cantidad ?? null,
-        descripcion: c.Descripcion ?? null,   // ojo con &quot; en el XML del front
+        descripcion: c.Descripcion ?? null,
         valor_unitario: c.ValorUnitario ?? null,
         importe: c.Importe ?? null,
         objeto_imp: c.ObjetoImp ?? null,
@@ -85,4 +85,17 @@ export async function importCfdiXml(xml, { replaceConcepts = true, storeXml = tr
 
     return { uuid: UUID, conceptos: conceptos.length };
   });
+}
+
+export async function getCfids({ estatus } = {}) {
+  const where = {};
+  if (typeof estatus === 'boolean') where.esta_asociado = estatus;
+  else where.esta_asociado = false;
+
+  const { rows, count } = await CfdiComprobante.findAndCountAll({
+    where,
+    attributes: ['uuid','folio','fecha','subtotal','total','esta_asociado'],
+    order: [['fecha','DESC']]
+  });
+  return { data: rows, total: count };
 }

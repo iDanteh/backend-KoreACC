@@ -2,7 +2,7 @@
 import express from 'express';
 import multer from 'multer';
 import { importCfdiXml } from '../services/cfdi.service.js';
-import { importCfdi } from '../controllers/cfdi.controller.js'
+import { importCfdi, listCfdis } from '../controllers/cfdi.controller.js'
 import { linkUuidToMovimientos } from '../services/movimientos-uuid.service.js';
 
 const router = express.Router();
@@ -24,5 +24,6 @@ router.post('/polizas/:id/movimientos/link-uuid', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get('/', listCfdis);
 
 export default router;

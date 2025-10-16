@@ -16,6 +16,7 @@ CfdiComprobante.init({
     rfc_receptor: DataTypes.STRING,
     nombre_receptor: DataTypes.STRING,
     xml_doc: DataTypes.TEXT,
+    esta_asociado: { type: DataTypes.BOOLEAN, defaultValue: false },
     created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
     updated_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
     }, {
