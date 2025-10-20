@@ -66,6 +66,15 @@ export const changeEstadoPoliza = async (req, res, next) => {
     }
 };
 
+export const changePolizaRevisada = async (req, res, next) => {
+    try {
+        const result = await polizaService.changePolizaRevisada(req.params.id);
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+}
+
 export const addMovimientoToPoliza = async (req, res, next) => {
     try {
         const result = await polizaService.addMovimientoToPoliza(req.params.id, req.body);
