@@ -1,6 +1,7 @@
 // services/ejercicio.service.js
 import { Op } from 'sequelize';
-import { EjercicioContable, Empresa } from '../models/index.js';
+import { EjercicioContable, Empresa, PeriodoContable, sequelize } from '../models/index.js';
+import { httpError } from '../utils/helper-poliza.js';
 
 function assertFechas(data) {
   const ini = new Date(data.fecha_inicio);
@@ -136,10 +137,26 @@ export async function abrirEjercicio(id, { cerrar_otros = true } = {}) {
   return item;
 }
 
-export async function cerrarEjercicio(id) {
-  const item = await EjercicioContable.findByPk(id);
-  if (!item) return null;
-  if (!item.esta_abierto) return item; 
-  await item.update({ esta_abierto: false });
-  return item;
+export async function cerrarEjercicio(id_ejercicio) {
+  return sequelize.transaction( async (t) => {
+    const ejercicio = await EjercicioContable.findByPk(id_ejercicio, {
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+    if(!ejercicio) return null;
+    if(!ejercicio.esta_abierto) return true;
+
+    const existeAbierto = await PeriodoContable.findOne({
+      where: { id_ejercicio, esta_abierto: true },
+      attributes: ['id_periodo'],
+      transaction: t,
+    });
+    if (existeAbierto) throw httpError('No se puede cerrar: hay periodos abiertos.', 409);
+
+    await ejercicio.update(
+      { esta_abierto: false, updated_at: new Date() },
+      { transaction: t },
+    );
+    return true;
+  });
 }

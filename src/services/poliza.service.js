@@ -3,6 +3,7 @@ import * as Models from '../models/index.js';
 import { validateMovimientosPoliza, httpError } from '../utils/helper-poliza.js';
 import { importCfdiXml } from './cfdi.service.js';
 import { linkUuidToMovimientos } from './movimientos-uuid.service.js';
+import { ensurePeriodoAbierto, ensurePolizaEditable } from '../utils/periodo.js';
 
 const {
     sequelize,
@@ -201,11 +202,14 @@ export async function createPoliza(payload, { movimientos = [] } = {}) {
     if (!payload.folio) throw httpError('folio requerido');
     if (!payload.concepto) throw httpError('concepto requerido');
     if (!Array.isArray(movimientos) || movimientos.length < 2) throw httpError('No se cumple partida doble');
+    
 
     // Validación para que cuadren las sumas iguales
     validateMovimientosPoliza(movimientos);
 
     return sequelize.transaction(async (t) => {
+        await ensurePeriodoAbierto(payload.id_periodo, t);
+
         const pol = await Poliza.create(payload, { transaction: t });
 
         if (movimientos?.length) {
@@ -243,25 +247,40 @@ export async function createPoliza(payload, { movimientos = [] } = {}) {
 
 export async function updatePoliza(id_poliza, payload) {
     const pol = await getPoliza(id_poliza);
+
     if (payload?.estado && !['Por revisar', 'Revisada', 'Contabilizada'].includes(payload.estado)) {
         throw httpError('estado inválido (Por revisar|Revisada|Contabilizada)');
     }
-    // Validaciones FK si cambian
+
+    // FKs si cambian
     if (payload?.id_tipopoliza) await ensureExists(TipoPoliza, payload.id_tipopoliza, 'TipoPoliza');
-    if (payload?.id_periodo) await ensureExists(PeriodoContable, payload.id_periodo, 'PeriodoContable');
     if (payload?.id_usuario) await ensureExists(Usuario, payload.id_usuario, 'Usuario');
     if (payload?.id_centro) await ensureExists(CentroCosto, payload.id_centro, 'Centro de Costo');
 
-    await pol.update({ ...payload, updated_at: new Date() });
-    return pol;
-    }
+    return sequelize.transaction(async (t) => {
+        if (payload?.id_periodo && payload.id_periodo !== pol.id_periodo) {
+        await ensurePeriodoAbierto(payload.id_periodo, t);
+        }
 
-    export async function changeEstadoPoliza(id_poliza, nuevoEstado) {
+        await ensurePolizaEditable(pol, t);
+
+        await pol.update({ ...payload, updated_at: new Date() }, { transaction: t });
+        return pol;
+    });
+}
+
+export async function changeEstadoPoliza(id_poliza, nuevoEstado) {
     if (!['Por revisar', 'Revisada', 'Contabilizada'].includes(nuevoEstado)) {
         throw httpError('estado inválido (Por revisar|Revisada|Contabilizada)');
     }
     const pol = await getPoliza(id_poliza);
     await pol.update({ estado: nuevoEstado, updated_at: new Date() });
+    return pol;
+}
+
+export async function changePolizaRevisada(id_poliza) {
+    const pol =  await getPolizaPoliza(id_poliza);
+    await pol.update({ estado: 'Revisada', updated_at: new Date() });
     return pol;
 }
 

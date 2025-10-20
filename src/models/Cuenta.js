@@ -13,7 +13,7 @@ const Cuenta = sequelize.define(
     codigo: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true, // ya crea índice único
+      unique: true,
     },
     nombre: {
       type: DataTypes.STRING,
