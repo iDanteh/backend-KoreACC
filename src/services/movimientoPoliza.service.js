@@ -1,6 +1,7 @@
 // services/movimientoPoliza.service.js
 import { Op } from 'sequelize';
 import * as Models from '../models/index.js';
+import { ensurePolizaEditable } from '../utils/periodo.js';
 
 const { MovimientoPoliza, Poliza, Cuenta, sequelize } = Models;
 
@@ -74,6 +75,10 @@ export async function createMovimiento(data) {
     if (!data?.fecha) throw httpError('fecha requerida');
 
     return sequelize.transaction(async (t) => {
+        const pol = await Poliza.findByPk(data.id_poliza, { transaction: t });
+        if (!pol) throw httpError('Póliza no encontrada', 404);
+
+        await ensurePolizaEditable(pol, t);
         await assertPolizaCuentaExist(data, t);
 
         // Si viene uuid, validar disponibilidad y marcar asociado

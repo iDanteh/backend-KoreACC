@@ -3,8 +3,7 @@ import { body, param, query } from 'express-validator';
 import { authenticateJWT, ensureNotRevoked } from '../middlewares/auth.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 import { createPoliza, listPolizas, getPoliza,updatePoliza,deletePoliza,changeEstadoPoliza,addMovimientoToPoliza,
-    addMovimientosToPoliza,
-    getPolizaWithMovimientos
+    addMovimientosToPoliza, getPolizaWithMovimientos, changePolizaRevisada
     } from '../controllers/poliza.controller.js';
 
 const router = Router();
@@ -67,6 +66,14 @@ router.patch('/:id/estado',authenticateJWT,ensureNotRevoked, requireFreshPasswor
         body('estado').isIn(['Por revisar', 'Revisada', 'Contabilizada']),
     ],
     changeEstadoPoliza
+);
+
+router.patch('/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
+    [
+        param().isInt({ min: 1 }),
+        body('estado').isIn(['Revisada']),
+    ],
+    changePolizaRevisada
 );
 
 router.post('/:id/movimiento',authenticateJWT,ensureNotRevoked,requireFreshPassword(),

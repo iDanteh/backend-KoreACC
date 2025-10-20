@@ -1,7 +1,7 @@
-// services/periodo.service.js (actualizado)
 import { Op, Sequelize } from 'sequelize';
 import { sequelize } from '../config/db.js';
-import { PeriodoContable, Empresa } from '../models/index.js';
+import { PeriodoContable, Empresa, Poliza } from '../models/index.js';
+import { httpError } from '../utils/helper-poliza.js';
 
 async function existeSolapePeriodo({
     id_empresa,
@@ -72,10 +72,16 @@ export async function createPeriodo(data) {
 }
 
 export const getPeriodo = (id) =>
-    PeriodoContable.findByPk(id, { include: [{ model: Empresa }] });
+    PeriodoContable.findOne({
+        where: {
+        id_periodo: id,
+        esta_abierto: true,
+        },
+        include: [{ model: Empresa }],
+});
 
 export const listPeriodos = (filters = {}) => {
-    const where = {};
+    const where = { esta_abierto: true };
     if (filters.id_empresa) where.id_empresa = filters.id_empresa;
     if (filters.id_ejercicio) where.id_ejercicio = filters.id_ejercicio;
     if (filters.tipo_periodo) where.tipo_periodo = filters.tipo_periodo;
@@ -162,12 +168,32 @@ export async function updatePeriodo(id, updates) {
     }
 }
 
-/** Soft delete: marca inactivo (permite recrear mismo rango después) */
-export async function deletePeriodo(id) {
-    const item = await PeriodoContable.findByPk(id);
-    if (!item) return null;
-    await item.update({ esta_abierto: false });
-    return true;
+/** Cierra el periodo */
+export async function cerrarPeriodo(id_periodo) {
+    return sequelize.transaction(async (t) => {
+        const periodo = await PeriodoContable.findByPk(id_periodo, {
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+        });
+        if (!periodo) return null;
+        if (!periodo.esta_abierto) return true;
+
+        // Verifica que no haya pólizas "Por revisar"
+        const pendientes = await Poliza.count({
+        where: { id_periodo, estado: 'Por revisar' },
+        transaction: t,
+        });
+        if (pendientes > 0) {
+        throw httpError(`No se puede cerrar: hay ${pendientes} póliza(s) "Por revisar".`, 409);
+        }
+
+        // Cierra
+        await periodo.update(
+        { esta_abierto: false, updated_at: new Date() },
+        { transaction: t }
+        );
+        return true;
+    });
 }
 
 /** Hard delete: elimina físicamente el registro */
