@@ -70,7 +70,7 @@ router.patch('/:id/estado',authenticateJWT,ensureNotRevoked, requireFreshPasswor
 
 router.patch('/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [
-        param().isInt({ min: 1 }),
+        param('id').isInt({ min: 1 }),
         body('estado').isIn(['Revisada']),
     ],
     changePolizaRevisada
