@@ -279,7 +279,7 @@ export async function changeEstadoPoliza(id_poliza, nuevoEstado) {
 }
 
 export async function changePolizaRevisada(id_poliza) {
-    const pol =  await getPolizaPoliza(id_poliza);
+    const pol =  await getPoliza(id_poliza);
     await pol.update({ estado: 'Revisada', updated_at: new Date() });
     return pol;
 }
