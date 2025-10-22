@@ -3,7 +3,7 @@ import { body, param, query } from 'express-validator';
 import { authenticateJWT, ensureNotRevoked } from '../middlewares/auth.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 import { createPoliza, listPolizas, getPoliza,updatePoliza,deletePoliza,changeEstadoPoliza,addMovimientoToPoliza,
-    addMovimientosToPoliza, getPolizaWithMovimientos, changePolizaRevisada
+    addMovimientosToPoliza, getPolizaWithMovimientos, changePolizaRevisada, createPolizaFromEventoFlat, expandEventoAndAddMovimientosFlat
     } from '../controllers/poliza.controller.js';
 
 const router = Router();
@@ -45,6 +45,56 @@ router.post('/', authenticateJWT,ensureNotRevoked,requireFreshPassword(),
         body('movimientos').optional().isArray(),
     ],
     createPoliza
+);
+
+// --- NUEVA: crear póliza desde EVENTO ---
+router.post('/from-evento',
+    authenticateJWT, ensureNotRevoked, requireFreshPassword(),
+    [
+        // Encabezado igual al create original
+        body('id_tipopoliza').isInt({ min: 1 }),
+        body('id_periodo').isInt({ min: 1 }),
+        body('id_usuario').isInt({ min: 1 }),
+        body('id_centro').isInt({ min: 1 }),
+        body('folio').isString().trim().notEmpty(),
+        body('concepto').isString().trim().notEmpty(),
+
+        // Motor (obligatorios)
+        body('tipo_operacion').isIn(['ingreso','egreso']),
+        body('monto_base').isFloat({ min: 0 }),
+        body('fecha_operacion').isISO8601(),
+        body('id_empresa').isInt({ min: 1 }),
+        body('medio_cobro_pago').isIn(['bancos','caja','clientes','proveedores']),
+        body('id_cuenta_contrapartida').isInt({ min: 1 }),
+
+        // Defaults opcionales para movimientos
+        body('cliente').optional().isString().trim(),
+        body('ref_serie_venta').optional().isString().trim(),
+        body('cc').optional().isInt({ min: 1 }),
+    ],
+    createPolizaFromEventoFlat
+);
+
+// --- NUEVA: agregar movimientos generados por evento (body plano) a póliza existente ---
+router.post('/:id/expand-evento',
+    authenticateJWT, ensureNotRevoked, requireFreshPassword(),
+    [
+        param('id').isInt({ min: 1 }),
+
+        // Motor (obligatorios)
+        body('tipo_operacion').isIn(['ingreso','egreso']),
+        body('monto_base').isFloat({ min: 0 }),
+        body('fecha_operacion').isISO8601(),
+        body('id_empresa').isInt({ min: 1 }),
+        body('medio_cobro_pago').isIn(['bancos','caja','clientes','proveedores']),
+        body('id_cuenta_contrapartida').isInt({ min: 1 }),
+
+        // Defaults opcionales
+        body('cliente').optional().isString().trim(),
+        body('ref_serie_venta').optional().isString().trim(),
+        body('cc').optional().isInt({ min: 1 }),
+    ],
+    expandEventoAndAddMovimientosFlat
 );
 
 router.put('/:id',authenticateJWT,ensureNotRevoked,requireFreshPassword(),

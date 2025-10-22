@@ -3,7 +3,8 @@ import * as Models from '../models/index.js';
 import { validateMovimientosPoliza, httpError } from '../utils/helper-poliza.js';
 import { importCfdiXml } from './cfdi.service.js';
 import { linkUuidToMovimientos } from './movimientos-uuid.service.js';
-import { ensurePeriodoAbierto, ensurePolizaEditable } from '../utils/periodo.js';
+import { ensurePeriodoAbierto, ensurePolizaEditable, ensureDeletePoliza } from '../utils/periodo.js';
+import { expandEventoToMovimientos } from './asientos-motor.js';
 
 const {
     sequelize,
@@ -166,16 +167,13 @@ export async function listPolizas({
         attributes: {
         include: flatAttributes
         },
-        // Evita subquery cuando pagina con includes; mejora compatibilidad con col()
         subQuery: false,
-        // Necesario si hay hasMany para que el count no explote por duplicados
         distinct: true,
     });
 
     return { data: rows, total: count, page: +page, pageSize: limit };
 }
 
-// Nuevo wrapper (opcional) que acepta { xml, linkMovimientoIds }
 export async function createPolizaWithXml(payload, { movimientos = [], xml, linkMovimientoIds = [] } = {}) {
     const pol = await createPoliza(payload, { movimientos });
 
@@ -269,6 +267,87 @@ export async function updatePoliza(id_poliza, payload) {
     });
 }
 
+export function buildPolizaPayloadFromFlatBody(body) {
+    const {
+        id_tipopoliza, id_periodo, id_usuario, id_centro,
+        folio, concepto
+    } = body;
+
+    return { id_tipopoliza, id_periodo, id_usuario, id_centro, folio, concepto };
+}
+
+export function buildEventoFromFlatBody(body) {
+    const {
+        tipo_operacion, monto_base, fecha_operacion, id_empresa,
+        medio_cobro_pago, id_cuenta_contrapartida,
+        cc
+    } = body;
+
+    return {
+        tipo_operacion,
+        monto_base,
+        fecha_operacion,
+        id_centro: cc ?? body.id_centro,
+        id_empresa,
+        medio_cobro_pago,
+        id_cuenta_contrapartida,
+    };
+}
+
+// --- NUEVO: crear póliza desde evento (genera movimientos automáticamente)
+export async function createPolizaFromEvento(polizaPayload, evento) {
+    // 1) Validaciones mínimas de FKs
+    await ensureExists(TipoPoliza,      polizaPayload.id_tipopoliza, 'TipoPoliza');
+    await ensureExists(PeriodoContable, polizaPayload.id_periodo,    'PeriodoContable');
+    await ensureExists(Usuario,         polizaPayload.id_usuario,    'Usuario');
+    await ensureExists(CentroCosto,     polizaPayload.id_centro,     'Centro de Costo');
+
+    if (!polizaPayload.folio)    throw httpError('folio requerido');
+    if (!polizaPayload.concepto) throw httpError('concepto requerido');
+
+    // 2) Expandir evento a movimientos (sin CFDI)
+    const movimientos = await expandEventoToMovimientos(evento);
+    if (!Array.isArray(movimientos) || movimientos.length < 2) {
+        throw httpError('No se cumple partida doble generada');
+    }
+
+    // 3) Transacción: validar periodo abierto y crear póliza + movimientos
+    return sequelize.transaction(async (t) => {
+        await ensurePeriodoAbierto(polizaPayload.id_periodo, t);
+
+        const pol = await Poliza.create(polizaPayload, { transaction: t });
+
+        await MovimientoPoliza.bulkCreate(
+        movimientos.map(m => ({ ...m, id_poliza: pol.id_poliza })),
+        { transaction: t }
+        );
+
+        return pol;
+    });
+}
+
+// --- NUEVO: agregar movimientos generados desde evento a una póliza existente
+export async function expandEventoAndAddMovimientos(id_poliza, evento) {
+    const pol = await Poliza.findByPk(id_poliza);
+    if (!pol) throw httpError('Póliza no encontrada', 404);
+
+    const movimientos = await expandEventoToMovimientos(evento);
+    if (!Array.isArray(movimientos) || movimientos.length < 2) {
+        throw httpError('No se cumple partida doble generada');
+    }
+
+    return sequelize.transaction(async (t) => {
+        await ensurePolizaEditable(pol, t);
+
+        await MovimientoPoliza.bulkCreate(
+        movimientos.map(m => ({ ...m, id_poliza })),
+        { transaction: t }
+        );
+
+        return { ok: true, count: movimientos.length };
+    });
+}
+
 export async function changeEstadoPoliza(id_poliza, nuevoEstado) {
     if (!['Por revisar', 'Revisada', 'Contabilizada'].includes(nuevoEstado)) {
         throw httpError('estado inválido (Por revisar|Revisada|Contabilizada)');
@@ -285,10 +364,15 @@ export async function changePolizaRevisada(id_poliza) {
 }
 
 export async function deletePoliza(id_poliza) {
-    // ON DELETE CASCADE en movimientos; esto elimina hijos automáticamente
-    const deleted = await Poliza.destroy({ where: { id_poliza } });
-    if (!deleted) throw httpError('Póliza no encontrada', 404);
-    return { ok: true };
+    if (!id_poliza) throw httpError('id_poliza requerido');
+    const pol = await getPoliza(id_poliza);
+
+    return sequelize.transaction(async (t) => {
+        await ensureDeletePoliza(pol, t);
+        await MovimientoPoliza.destroy({ where: { id_poliza }, transaction: t });
+        await pol.destroy({ transaction: t });
+        return true;
+    });
 }
 
 export async function addMovimientoToPoliza(id_poliza, movimientoData) {
