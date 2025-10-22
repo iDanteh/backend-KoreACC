@@ -23,3 +23,11 @@ export async function ensurePolizaEditable(pol, t) {
     if (!per) throw httpError('Periodo no encontrado', 404);
     if (!per.esta_abierto) throw httpError('El periodo de la póliza está cerrado.', 409);
 }
+
+export async function ensureDeletePoliza(pol, t) {
+    if (!pol) throw httpError('Póliza no encontrada', 404);
+
+    if (pol.estado === 'Revisada' || pol.estado === 'Contabilizada') {
+        throw httpError('No se puede eliminar una póliza revisada o contabilizada', 409);
+    }
+}
