@@ -3,21 +3,20 @@ import { expandEventoToMovimientos } from '../services/asientos-motor.js';
 import { normalizeMovimientosInput } from '../utils/mov-normalizer.js';
 
 export const createPoliza = async (req, res, next) => {
-  try {
-    const { movimientos = [], ...payload } = req.body;
+    try {
+        const { movimientos = [], ...payload } = req.body;
 
-    // Normaliza antes de pasar al service original
-    const movs = normalizeMovimientosInput(movimientos, {
-      defaultFecha: payload.fecha_creacion ?? payload.fecha ?? null,
-      defaultCc:    req.body.cc ?? payload.id_centro ?? null,
-      uiCargoEs0:   true, // por tu UI actual
-    });
+        const movs = normalizeMovimientosInput(movimientos, {
+        defaultFecha: payload.fecha_creacion ?? payload.fecha ?? null,
+        defaultCc:    req.body.cc ?? payload.id_centro ?? null,
+        uiCargoEs0:   true, 
+        });
 
-    const result = await polizaService.createPoliza(payload, { movimientos: movs });
-    res.status(201).json(result);
-  } catch (err) {
-    next(err);
-  }
+        const result = await polizaService.createPoliza(payload, { movimientos: movs });
+        res.status(201).json(result);
+    } catch (err) {
+        next(err);
+    }
 };
 
 export const createPolizaFromEventoFlat = async (req, res, next) => {

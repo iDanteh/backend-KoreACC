@@ -1,4 +1,3 @@
-// src/services/asientos-motor.js
 import { CuentaFlujo } from '../utils/cuentas.config.js';
 import { getImpuestosVigentes } from '../utils/impuestos.helper.js';
 
