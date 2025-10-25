@@ -14,7 +14,7 @@ router.get('/',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
         query('id_periodo').optional().isInt({ min: 1 }),
         query('id_usuario').optional().isInt({ min: 1 }),
         query('id_centro').optional().isInt({ min: 1 }),
-        query('estado').optional().isIn(['Por revisar', 'Revisada', 'Contabilizada']),
+        query('estado').optional().isIn(['Por revisar', 'Aprobada', 'Contabilizada']),
         query('q').optional().isString().trim(),
         query('fecha_desde').optional().isISO8601(),
         query('fecha_hasta').optional().isISO8601(),
@@ -104,7 +104,7 @@ router.put('/:id',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
         body('id_periodo').optional().isInt({ min: 1 }),
         body('id_usuario').optional().isInt({ min: 1 }),
         body('id_centro').optional().isInt({ min: 1 }),
-        body('estado').optional().isIn(['Por revisar', 'Revisada', 'Contabilizada']),
+        body('estado').optional().isIn(['Por revisar', 'Aprobada', 'Contabilizada']),
         body('concepto').optional().isString().trim(),
     ],
     updatePoliza
@@ -113,7 +113,7 @@ router.put('/:id',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
 router.patch('/:id/estado',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
     [
         param('id').isInt({ min: 1 }),
-        body('estado').isIn(['Por revisar', 'Revisada', 'Contabilizada']),
+        body('estado').isIn(['Por revisar', 'Aprobada', 'Contabilizada']),
     ],
     changeEstadoPoliza
 );
@@ -121,7 +121,7 @@ router.patch('/:id/estado',authenticateJWT,ensureNotRevoked, requireFreshPasswor
 router.patch('/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     [
         param('id').isInt({ min: 1 }),
-        body('estado').isIn(['Revisada']),
+        body('estado').isIn(['Aprobada']),
     ],
     changePolizaRevisada
 );

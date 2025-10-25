@@ -9,9 +9,9 @@ Poliza.init({
     id_periodo: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'periodo_contable', key: 'id_periodo' } },
     id_usuario: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'usuario', key: 'id_usuario' } },
     id_centro: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'centro_costo', key: 'id_centro' } },
-    folio: { type: DataTypes.STRING, allowNull: false },
+    folio: { type: DataTypes.STRING, allowNull: false, unique: true },
     concepto: { type: DataTypes.STRING, allowNull: false, },
-    estado: { type: DataTypes.ENUM('Por revisar', 'Revisada', 'Contabilizada'), allowNull: false, defaultValue: 'Por revisar' },
+    estado: { type: DataTypes.ENUM('Por revisar', 'Aprobada', 'Contabilizada'), allowNull: false, defaultValue: 'Por revisar' },
     fecha_creacion: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
@@ -26,5 +26,8 @@ Poliza.init({
         { fields: ['id_centro'] },
         { fields: ['estado'] },
     ],
-    hooks: { beforeCreate: (inst) => { inst.updated_at = new Date(); },},
+    hooks: {
+        beforeCreate: (inst) => { inst.updated_at = new Date(); },
+        beforeUpdate: (inst) => { inst.updated_at = new Date(); },
+    },
 });

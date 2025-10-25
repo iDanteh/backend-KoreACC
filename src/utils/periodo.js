@@ -17,7 +17,7 @@ export async function ensurePeriodoAbierto(id_periodo, t) {
 export async function ensurePolizaEditable(pol, t) {
     if(!pol) throw httpError('Póliza no encontrada', 404);
 
-    if (pol.estado !== 'Por revisar') throw httpError('La Póliza se encuentra como "Revisada o contabilizada" ', 409);
+    if (pol.estado !== 'Por revisar') throw httpError('La Póliza se encuentra como "Aprobada o contabilizada" ', 409);
 
     const per = await PeriodoContable.findByPk(pol.id_periodo, { transaction: t ?? undefined });
     if (!per) throw httpError('Periodo no encontrado', 404);
@@ -27,7 +27,7 @@ export async function ensurePolizaEditable(pol, t) {
 export async function ensureDeletePoliza(pol, t) {
     if (!pol) throw httpError('Póliza no encontrada', 404);
 
-    if (pol.estado === 'Revisada' || pol.estado === 'Contabilizada') {
-        throw httpError('No se puede eliminar una póliza revisada o contabilizada', 409);
+    if (pol.estado === 'Aprobada' || pol.estado === 'Contabilizada') {
+        throw httpError('No se puede eliminar una póliza Aprobada o contabilizada', 409);
     }
 }

@@ -1,6 +1,5 @@
-// services/ejercicio.service.js
 import { Op } from 'sequelize';
-import { EjercicioContable, Empresa, PeriodoContable, sequelize } from '../models/index.js';
+import { EjercicioContable, Empresa, PeriodoContable, Poliza, sequelize } from '../models/index.js';
 import { httpError } from '../utils/helper-poliza.js';
 
 function assertFechas(data) {
@@ -138,25 +137,66 @@ export async function abrirEjercicio(id, { cerrar_otros = true } = {}) {
 }
 
 export async function cerrarEjercicio(id_ejercicio) {
-  return sequelize.transaction( async (t) => {
+  return sequelize.transaction(async (t) => {
     const ejercicio = await EjercicioContable.findByPk(id_ejercicio, {
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
-    if(!ejercicio) return null;
-    if(!ejercicio.esta_abierto) return true;
+    if (!ejercicio) return null;
+    if (!ejercicio.esta_abierto) return true;
 
-    const existeAbierto = await PeriodoContable.findOne({
+    // 1) Validar que no existan periodos abiertos del mismo ejercicio
+    const existeAbierto = await PeriodoContable.count({
       where: { id_ejercicio, esta_abierto: true },
-      attributes: ['id_periodo'],
       transaction: t,
     });
-    if (existeAbierto) throw httpError('No se puede cerrar: hay periodos abiertos.', 409);
+    if (existeAbierto > 0) {
+      throw httpError('No se puede cerrar: hay periodos abiertos.', 409);
+    }
 
+    // 2) Validar pólizas "Por revisar" del mismo ejercicio
+    const periodoIds = await PeriodoContable.findAll({
+      where: { id_ejercicio },
+      attributes: ['id_periodo'],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    }).then(rows => rows.map(r => r.id_periodo));
+
+    if (periodoIds.length === 0) {
+      await ejercicio.update(
+        { esta_abierto: false, updated_at: new Date() },
+        { transaction: t }
+      );
+      return true;
+    }
+
+    const polizaPendiente = await Poliza.findOne({
+      where: { estado: 'Por revisar', id_periodo: { [Op.in]: periodoIds } },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+    if (polizaPendiente) {
+      throw httpError('No se puede cerrar: hay pólizas por revisar.', 409);
+    }
+
+    // 3) Pasar todas las "Aprobada" a "Contabilizada" del ejercicio
+    await Poliza.update(
+      { estado: 'Contabilizada', updated_at: new Date() },
+      {
+        where: {
+          estado: 'Aprobada',
+          id_periodo: { [Op.in]: periodoIds },
+        },
+        transaction: t,
+      }
+    );
+
+    // 4) Cerrar ejercicio
     await ejercicio.update(
       { esta_abierto: false, updated_at: new Date() },
-      { transaction: t },
+      { transaction: t }
     );
+
     return true;
   });
 }

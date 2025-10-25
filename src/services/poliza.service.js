@@ -246,8 +246,8 @@ export async function createPoliza(payload, { movimientos = [] } = {}) {
 export async function updatePoliza(id_poliza, payload) {
     const pol = await getPoliza(id_poliza);
 
-    if (payload?.estado && !['Por revisar', 'Revisada', 'Contabilizada'].includes(payload.estado)) {
-        throw httpError('estado inválido (Por revisar|Revisada|Contabilizada)');
+    if (payload?.estado && !['Por revisar', 'Aprobada', 'Contabilizada'].includes(payload.estado)) {
+        throw httpError('estado inválido (Por revisar|Aprobada|Contabilizada)');
     }
 
     // FKs si cambian
@@ -349,8 +349,8 @@ export async function expandEventoAndAddMovimientos(id_poliza, evento) {
 }
 
 export async function changeEstadoPoliza(id_poliza, nuevoEstado) {
-    if (!['Por revisar', 'Revisada', 'Contabilizada'].includes(nuevoEstado)) {
-        throw httpError('estado inválido (Por revisar|Revisada|Contabilizada)');
+    if (!['Por revisar', 'Aprobada', 'Contabilizada'].includes(nuevoEstado)) {
+        throw httpError('estado inválido (Por revisar|Aprobada|Contabilizada)');
     }
     const pol = await getPoliza(id_poliza);
     await pol.update({ estado: nuevoEstado, updated_at: new Date() });
@@ -359,7 +359,7 @@ export async function changeEstadoPoliza(id_poliza, nuevoEstado) {
 
 export async function changePolizaRevisada(id_poliza) {
     const pol =  await getPoliza(id_poliza);
-    await pol.update({ estado: 'Revisada', updated_at: new Date() });
+    await pol.update({ estado: 'Aprobada', updated_at: new Date() });
     return pol;
 }
 
