@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import * as Models from '../models/index.js';
 import { validateMovimientosPoliza, httpError } from '../utils/helper-poliza.js';
+import { assertCuentaPosteable } from '../utils/cuentas.js';
 import { importCfdiXml } from './cfdi.service.js';
 import { linkUuidToMovimientos } from './movimientos-uuid.service.js';
 import { ensurePeriodoAbierto, ensurePolizaEditable, ensureDeletePoliza } from '../utils/periodo.js';
@@ -211,32 +212,32 @@ export async function createPoliza(payload, { movimientos = [] } = {}) {
         const pol = await Poliza.create(payload, { transaction: t });
 
         if (movimientos?.length) {
-        // Validación ligera por cada movimiento
-        for (const m of movimientos) {
-            if (m.id_poliza && m.id_poliza !== pol.id_poliza) {
-            throw httpError('id_poliza de movimiento no coincide con la póliza creada');
-            }
-            if (m.operacion !== '0' && m.operacion !== '1') {
-            throw httpError('operacion inválida en movimiento (0=Haber, 1=Debe)');
-            }
-            if (m.monto == null) throw httpError('monto requerido en movimiento');
-            // Validar cuenta si el modelo está disponible
-            if (Cuenta && m.id_cuenta) {
-            const cuenta = await Cuenta.findByPk(m.id_cuenta, { transaction: t });
-            if (!cuenta) throw httpError('Cuenta no encontrada', 404);
-            }
-            if (m.uuid) {
-                const cfdi = await CfdiComprobante.findOne({ where: { uuid: m.uuid }, transaction: t, lock: t.LOCK.UPDATE });
-                if (!cfdi) throw httpError('CFDI no encontrado', 404);
-                if (cfdi.esta_asociado) throw httpError('CFDI ya está asociado a otro movimiento', 409);
-                await cfdi.update({ esta_asociado: true, updated_at: new Date() }, { transaction: t });
-            }
-        }
+            // Validación ligera por cada movimiento
+            const normalizados = [];
+            for (const m of movimientos) {
+                if (m.id_poliza && m.id_poliza !== pol.id_poliza) {
+                throw httpError('id_poliza de movimiento no coincide con la póliza creada');
+                }
+                if (m.operacion !== '0' && m.operacion !== '1') {
+                throw httpError('operacion inválida en movimiento (0=Haber, 1=Debe)');
+                }
+                if (m.monto == null) throw httpError('monto requerido en movimiento');
+                const { id_cuenta } = await assertCuentaPosteable({ id_cuenta: m.id_cuenta, codigo: m.codigo }, t);
+                if (Cuenta && m.id_cuenta) {
+                const cuenta = await Cuenta.findByPk(m.id_cuenta, { transaction: t });
+                if (!cuenta) throw httpError('Cuenta no encontrada', 404);
+                }
+                if (m.uuid) {
+                    const cfdi = await CfdiComprobante.findOne({ where: { uuid: m.uuid }, transaction: t, lock: t.LOCK.UPDATE });
+                    if (!cfdi) throw httpError('CFDI no encontrado', 404);
+                    if (cfdi.esta_asociado) throw httpError('CFDI ya está asociado a otro movimiento', 409);
+                    await cfdi.update({ esta_asociado: true, updated_at: new Date() }, { transaction: t });
+                }
 
-        await MovimientoPoliza.bulkCreate(
-            movimientos.map(m => ({ ...m, id_poliza: pol.id_poliza })),
-            { transaction: t }
-        );
+                normalizados.push({ ...m, id_cuenta, id_poliza: pol.id_poliza });
+            }
+
+            await MovimientoPoliza.bulkCreate(normalizados, { transaction: t });
         }
 
         return pol;
@@ -317,13 +318,18 @@ export async function createPolizaFromEvento(polizaPayload, evento) {
 
         const pol = await Poliza.create(polizaPayload, { transaction: t });
 
-        await MovimientoPoliza.bulkCreate(
-        movimientos.map(m => ({ ...m, id_poliza: pol.id_poliza })),
-        { transaction: t }
-        );
+        const normalizados = [];
+            for (const m of movimientos) {
+                const { id_cuenta } = await assertCuentaPosteable(
+                    { id_cuenta: m.id_cuenta, codigo: m.codigo },
+                    t
+                );
+                normalizados.push({ ...m, id_cuenta, id_poliza: pol.id_poliza });
+            }
 
-        return pol;
-    });
+            await MovimientoPoliza.bulkCreate(normalizados, { transaction: t });
+            return pol;
+        });
 }
 
 // --- NUEVO: agregar movimientos generados desde evento a una póliza existente
@@ -339,12 +345,17 @@ export async function expandEventoAndAddMovimientos(id_poliza, evento) {
     return sequelize.transaction(async (t) => {
         await ensurePolizaEditable(pol, t);
 
-        await MovimientoPoliza.bulkCreate(
-        movimientos.map(m => ({ ...m, id_poliza })),
-        { transaction: t }
+        const normalizados = [];
+        for (const m of movimientos) {
+        const { id_cuenta } = await assertCuentaPosteable(
+            { id_cuenta: m.id_cuenta, codigo: m.codigo },
+            t
         );
+        normalizados.push({ ...m, id_cuenta, id_poliza });
+        }
 
-        return { ok: true, count: movimientos.length };
+        await MovimientoPoliza.bulkCreate(normalizados, { transaction: t });
+        return { ok: true, count: normalizados.length };
     });
 }
 
