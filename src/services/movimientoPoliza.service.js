@@ -1,7 +1,7 @@
-// services/movimientoPoliza.service.js
 import { Op } from 'sequelize';
 import * as Models from '../models/index.js';
 import { ensurePolizaEditable } from '../utils/periodo.js';
+import { assertCuentaPosteable } from '../utils/cuentas.js';
 
 const { MovimientoPoliza, Poliza, Cuenta, sequelize } = Models;
 
@@ -79,6 +79,10 @@ export async function createMovimiento(data) {
         if (!pol) throw httpError('Póliza no encontrada', 404);
 
         await ensurePolizaEditable(pol, t);
+            const { id_cuenta } = await assertCuentaPosteable(
+        { id_cuenta: data.id_cuenta, codigo: data.codigo },
+        t
+        );
         await assertPolizaCuentaExist(data, t);
 
         // Si viene uuid, validar disponibilidad y marcar asociado
@@ -88,14 +92,14 @@ export async function createMovimiento(data) {
         await cfdi.update({ esta_asociado: true, updated_at: new Date() }, { transaction: t });
         }
 
-        return MovimientoPoliza.create(data, { transaction: t });
+        return MovimientoPoliza.create({ ...data, id_cuenta }, { transaction: t });
     });
 }
 
 /** Actualiza un movimiento y maneja el cambio de uuid (libera/ocupa CFDIs) */
 export async function updateMovimiento(id_movimiento, payload) {
-    if (payload?.operacion && payload.operacion !== '0' && payload.operacion !== '1') {
-        throw httpError('operacion inválida (0=Haber, 1=Debe)');
+    if (payload?.operacion && payload.operacion !== "0" && payload.operacion !== "1") {
+        throw httpError("operacion inválida (0=Haber, 1=Debe)");
     }
 
     return sequelize.transaction(async (t) => {
@@ -103,19 +107,24 @@ export async function updateMovimiento(id_movimiento, payload) {
 
         if (payload?.id_poliza) {
         const pol = await Poliza.findByPk(payload.id_poliza, { transaction: t });
-        if (!pol) throw httpError('Póliza no encontrada', 404);
-        }
-        if (Cuenta && payload?.id_cuenta) {
-        const cuenta = await Cuenta.findByPk(payload.id_cuenta, { transaction: t });
-        if (!cuenta) throw httpError('Cuenta no encontrada', 404);
+        if (!pol) throw httpError("Póliza no encontrada", 404);
         }
 
+        let id_cuenta_final = mov.id_cuenta;
+        if (payload?.id_cuenta || payload?.codigo) {
+        const { id_cuenta } = await assertCuentaPosteable(
+            { id_cuenta: payload.id_cuenta, codigo: payload.codigo },
+            t
+        );
+        id_cuenta_final = id_cuenta;
+        }
+
+        // Gestión de CFDI si cambia
         const prevUuid = mov.uuid;
-        const nextUuid = Object.prototype.hasOwnProperty.call(payload, 'uuid')
+        const nextUuid = Object.prototype.hasOwnProperty.call(payload, "uuid")
         ? payload.uuid
         : prevUuid;
 
-        // Si cambia el UUID, liberar el anterior y ocupar el nuevo
         if (nextUuid !== prevUuid) {
         if (prevUuid) {
             const cfdiPrev = await lockAndGetCfdi(prevUuid, t);
@@ -123,12 +132,12 @@ export async function updateMovimiento(id_movimiento, payload) {
         }
         if (nextUuid) {
             const cfdiNext = await lockAndGetCfdi(nextUuid, t);
-            if (cfdiNext.esta_asociado) throw httpError('CFDI ya está asociado a otro movimiento', 409);
+            if (cfdiNext.esta_asociado) throw httpError("CFDI ya está asociado a otro movimiento", 409);
             await cfdiNext.update({ esta_asociado: true, updated_at: new Date() }, { transaction: t });
         }
         }
 
-        await mov.update({ ...payload, updated_at: new Date() }, { transaction: t });
+        await mov.update({ ...payload, id_cuenta: id_cuenta_final, updated_at: new Date() }, { transaction: t });
         return mov;
     });
 }

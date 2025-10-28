@@ -1,6 +1,6 @@
 import { Op, Sequelize } from 'sequelize';
 import { sequelize } from '../config/db.js';
-import { PeriodoContable, Empresa, Poliza } from '../models/index.js';
+import { PeriodoContable, Empresa, Poliza, EjercicioContable } from '../models/index.js';
 import { httpError } from '../utils/helper-poliza.js';
 
 async function existeSolapePeriodo({
@@ -79,6 +79,15 @@ export const getPeriodo = (id) =>
         },
         include: [{ model: Empresa }],
 });
+
+export const getPeriodoByEjercicio = (id_ejercicio) => {
+    const where = { id_ejercicio: id_ejercicio};
+
+    return PeriodoContable.findAll({
+    where,
+    order: [['fecha_inicio', 'DESC'], ['id_periodo', 'DESC']],
+    });
+}
 
 export const listPeriodos = (filters = {}) => {
     const where = { esta_abierto: true };

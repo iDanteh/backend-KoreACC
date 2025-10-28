@@ -1,59 +1,78 @@
-// src/models/Cuenta.js
 import { DataTypes } from "sequelize";
 import { sequelize } from "../config/db.js";
 
 const Cuenta = sequelize.define(
   "Cuenta",
   {
-    id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
-    },
-    codigo: {
-      type: DataTypes.STRING,
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+
+    codigo: { type: DataTypes.STRING, allowNull: false, unique: true },
+
+    nombre: { type: DataTypes.STRING, allowNull: false },
+
+    // clasificación contable para apertura/cierre
+    tipo: {
+      type: DataTypes.ENUM("ACTIVO","PASIVO","CAPITAL","INGRESO","GASTO"),
       allowNull: false,
-      unique: true,
+      field: "tipo",
     },
-    nombre: {
-      type: DataTypes.STRING,
+
+    // naturaleza contable
+    naturaleza: {
+      type: DataTypes.ENUM("DEUDORA","ACREEDORA"),
       allowNull: false,
+      field: "naturaleza",
     },
+
+    // control operativo
     ctaMayor: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
+      field: "cta_mayor",
     },
+
+    posteable: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      field: "posteable",
+    },
+
     parentId: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      references: {
-        model: "cuentas",
-        key: "id",
-      },
+      field: "parent_id",
+      references: { model: "cuentas", key: "id" },
     },
+
     deleted: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
+      field: "deleted",
     },
   },
   {
     tableName: "cuentas",
-    timestamps: true,
+    timestamps: false,
     defaultScope: { where: { deleted: false } },
     scopes: { withDeleted: {} },
-    // <-- sin "indexes"
+    indexes: [
+      { fields: [{ name: "codigo" }], unique: true },
+      { fields: [{ name: "tipo" }] },
+      { fields: [{ name: "naturaleza" }] },
+      { fields: [{ name: "parent_id" }] },
+    ],
   }
 );
 
-// Relaciones autorreferenciales
 Cuenta.hasMany(Cuenta, {
   as: "hijos",
-  foreignKey: { name: "parentId", allowNull: true },
+  foreignKey: { name: "parentId", field: "parent_id", allowNull: true },
   onDelete: "SET NULL",
 });
+
 Cuenta.belongsTo(Cuenta, {
   as: "padre",
-  foreignKey: { name: "parentId", allowNull: true },
+  foreignKey: { name: "parentId", field: "parent_id", allowNull: true },
 });
 
 export default Cuenta;
