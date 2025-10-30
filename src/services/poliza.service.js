@@ -8,14 +8,19 @@ import { ensurePeriodoAbierto, ensurePolizaEditable, ensureDeletePoliza } from '
 import { expandEventoToMovimientos } from './asientos-motor.js';
 
 const {
-    sequelize,
-    Poliza,
-    TipoPoliza,
-    MovimientoPoliza,
-    PeriodoContable,
+    
+sequelize,
+  CfdiComprobante,
+  CfdiConcepto,
+  CfdiTraslado,
+  Poliza,
+  MovimientoPoliza,
+  Cuenta,
+  PeriodoContable,
+  TipoPoliza,
+  CentroCosto,
     Usuario,
-    CentroCosto,
-    Cuenta,
+
 } = Models;
 
 async function ensureExists(Model, id, name) {
@@ -190,7 +195,7 @@ export async function createPolizaWithXml(payload, { movimientos = [], xml, link
 
     return pol;
 }
-
+//jjj
 export async function createPoliza(payload, { movimientos = [] } = {}) {
     // Validaciones FK mínimas
     await ensureExists(TipoPoliza, payload.id_tipopoliza, 'TipoPoliza');
@@ -204,44 +209,181 @@ export async function createPoliza(payload, { movimientos = [] } = {}) {
     
 
     // Validación para que cuadren las sumas iguales
-    validateMovimientosPoliza(movimientos);
+// Validación de cuadre: estricta salvo que permitir_descuadre = true
+if (!permitir_descuadre) {
+  validateMovimientosPoliza(movimientos);
+} else {
+  // Solo calcula el descuadre para dejar rastro (log); no truena
+  const sumDebe  = movimientos.filter(m => m.operacion === '0')
+                    .reduce((s, m) => s + (Number(m.monto) || 0), 0);
+  const sumHaber = movimientos.filter(m => m.operacion === '1')
+                    .reduce((s, m) => s + (Number(m.monto) || 0), 0);
+  const diff = +(sumDebe - sumHaber).toFixed(2);
+  if (diff !== 0) {
+    console.warn(`[POLIZA DESCUADRADA] Debe=${sumDebe} Haber=${sumHaber} Dif=${diff}`);
+  }
+}
 
     return sequelize.transaction(async (t) => {
         await ensurePeriodoAbierto(payload.id_periodo, t);
 
         const pol = await Poliza.create(payload, { transaction: t });
 
-        if (movimientos?.length) {
-            // Validación ligera por cada movimiento
-            const normalizados = [];
-            for (const m of movimientos) {
-                if (m.id_poliza && m.id_poliza !== pol.id_poliza) {
-                throw httpError('id_poliza de movimiento no coincide con la póliza creada');
-                }
-                if (m.operacion !== '0' && m.operacion !== '1') {
-                throw httpError('operacion inválida en movimiento (0=Haber, 1=Debe)');
-                }
-                if (m.monto == null) throw httpError('monto requerido en movimiento');
-                const { id_cuenta } = await assertCuentaPosteable({ id_cuenta: m.id_cuenta, codigo: m.codigo }, t);
-                if (Cuenta && m.id_cuenta) {
-                const cuenta = await Cuenta.findByPk(m.id_cuenta, { transaction: t });
-                if (!cuenta) throw httpError('Cuenta no encontrada', 404);
-                }
-                if (m.uuid) {
-                    const cfdi = await CfdiComprobante.findOne({ where: { uuid: m.uuid }, transaction: t, lock: t.LOCK.UPDATE });
-                    if (!cfdi) throw httpError('CFDI no encontrado', 404);
-                    if (cfdi.esta_asociado) throw httpError('CFDI ya está asociado a otro movimiento', 409);
-                    await cfdi.update({ esta_asociado: true, updated_at: new Date() }, { transaction: t });
-                }
+  if (movimientos?.length) {
+  // 1) Junta y normaliza UUIDs (trim + uppercase)
+  const norm = (u) => String(u).normalize('NFKC').trim().toUpperCase();
+  const uuids = [...new Set(
+    movimientos
+      .map(m => (typeof m?.uuid === 'string' ? m.uuid : ''))
+      .filter(Boolean)
+      .map(norm)
+  )];
 
-                normalizados.push({ ...m, id_cuenta, id_poliza: pol.id_poliza });
-            }
+  // 2) Busca CFDI y aplica lock
+  let cfdis = [];
+  if (uuids.length) {
+    cfdis = await CfdiComprobante.findAll({
+      where: { uuid: { [Op.in]: uuids } },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
 
-            await MovimientoPoliza.bulkCreate(normalizados, { transaction: t });
-        }
+    // 2.1 Identifica faltantes (no truena; solo avisa)
+    const encontrados = new Set(cfdis.map(c => norm(c.uuid)));
+    const noHallados = uuids.filter(u => !encontrados.has(u));
+    if (noHallados.length) {
+      console.warn('CFDI no encontrados (se continúa sin asociar):', noHallados);
+    }
+
+    // 2.2 Revisa ya asociados (sí truena para evitar duplicidad)
+    const yaAsociados = cfdis.filter(c => c.esta_asociado);
+    if (yaAsociados.length) {
+      throw httpError(`CFDI ya asociado: ${yaAsociados.map(c => c.uuid).join(', ')}`, 409);
+    }
+
+    // 2.3 Marca como asociados solo los hallados
+    if (cfdis.length) {
+      await CfdiComprobante.update(
+        { esta_asociado: true, updated_at: new Date() },
+        { where: { uuid: { [Op.in]: cfdis.map(c => c.uuid) } }, transaction: t }
+      );
+    }
+
+    // 2.4 Normaliza el uuid en cada movimiento (para persistir homogéneo)
+    for (const m of movimientos) {
+      if (m.uuid) m.uuid = norm(m.uuid);
+    }
+  }
+
+  // 3) Normaliza/valida cada movimiento y crea en bloque
+  const normalizados = [];
+  for (const m of movimientos) {
+    if (m.id_poliza && m.id_poliza !== pol.id_poliza) {
+      throw httpError('id_poliza de movimiento no coincide con la póliza creada');
+    }
+    // Ajusta el mensaje a tu convención real:
+    if (m.operacion !== '0' && m.operacion !== '1') {
+      throw httpError('operacion inválida en movimiento (0=Cargo, 1=Abono)');
+    }
+    if (m.monto == null) throw httpError('monto requerido en movimiento');
+
+    const { id_cuenta } = await assertCuentaPosteable(
+      { id_cuenta: m.id_cuenta, codigo: m.codigo },
+      t
+    );
+
+    if (Cuenta && m.id_cuenta) {
+      const cuenta = await Cuenta.findByPk(m.id_cuenta, { transaction: t });
+      if (!cuenta) throw httpError('Cuenta no encontrada', 404);
+    }
+
+    normalizados.push({ ...m, id_cuenta, id_poliza: pol.id_poliza });
+  }
+
+  await MovimientoPoliza.bulkCreate(normalizados, { transaction: t });
+}
+
+
 
         return pol;
     });
+}
+// ➕ agrega esto junto a las demás exports del servicio:
+export async function createPolizaPermisiva(payload, { movimientos = [] } = {}) {
+  await ensureExists(TipoPoliza, payload.id_tipopoliza, 'TipoPoliza');
+  await ensureExists(PeriodoContable, payload.id_periodo, 'PeriodoContable');
+  await ensureExists(Usuario, payload.id_usuario, 'Usuario');
+  await ensureExists(CentroCosto, payload.id_centro, 'Centro de Costo');
+
+  if (!payload.folio)    throw httpError('folio requerido');
+  if (!payload.concepto) throw httpError('concepto requerido');
+  if (!Array.isArray(movimientos) || movimientos.length < 1) {
+    throw httpError('Se requiere al menos un movimiento');
+  }
+
+  // 👇 No llamamos validateMovimientosPoliza aquí (permite no cuadrada)
+
+  return sequelize.transaction(async (t) => {
+    await ensurePeriodoAbierto(payload.id_periodo, t);
+
+    const pol = await Poliza.create(
+      { ...payload, estado: payload.estado ?? 'No cuadrada' },
+      { transaction: t }
+    );
+
+    if (movimientos?.length) {
+      // Normalización/validación por movimiento (igual que en createPoliza)
+      const normUuid = (u) => String(u).normalize('NFKC').trim().toUpperCase();
+      const uuids = [...new Set(movimientos.map(m => (m.uuid ? normUuid(m.uuid) : '')).filter(Boolean))];
+
+      if (uuids.length) {
+        const cfdis = await CfdiComprobante.findAll({
+          where: { uuid: { [Op.in]: uuids } },
+          transaction: t, lock: t.LOCK.UPDATE,
+        });
+
+        // no truena si faltan (solo avisa):
+        const encontrados = new Set(cfdis.map(c => normUuid(c.uuid)));
+        const noHallados = uuids.filter(u => !encontrados.has(u));
+        if (noHallados.length) console.warn('CFDI no encontrados (perm):', noHallados);
+
+        const yaAsociados = cfdis.filter(c => c.esta_asociado);
+        if (yaAsociados.length) {
+          throw httpError(`CFDI ya asociado: ${yaAsociados.map(c => c.uuid).join(', ')}`, 409);
+        }
+
+        if (cfdis.length) {
+          await CfdiComprobante.update(
+            { esta_asociado: true, updated_at: new Date() },
+            { where: { uuid: { [Op.in]: cfdis.map(c => c.uuid) } }, transaction: t }
+          );
+        }
+
+        for (const m of movimientos) if (m.uuid) m.uuid = normUuid(m.uuid);
+      }
+
+      const rows = [];
+      for (const m of movimientos) {
+        if (m.operacion !== '0' && m.operacion !== '1') {
+          throw httpError('operacion inválida en movimiento (0=Cargo, 1=Abono)');
+        }
+        if (m.monto == null) throw httpError('monto requerido en movimiento');
+
+        const { id_cuenta } = await assertCuentaPosteable({ id_cuenta: m.id_cuenta, codigo: m.codigo }, t);
+
+        if (Cuenta && m.id_cuenta) {
+          const cuenta = await Cuenta.findByPk(m.id_cuenta, { transaction: t });
+          if (!cuenta) throw httpError('Cuenta no encontrada', 404);
+        }
+
+        rows.push({ ...m, id_cuenta, id_poliza: pol.id_poliza });
+      }
+
+      await MovimientoPoliza.bulkCreate(rows, { transaction: t });
+    }
+
+    return pol;
+  });
 }
 
 export async function updatePoliza(id_poliza, payload) {
@@ -296,41 +438,7 @@ export function buildEventoFromFlatBody(body) {
 }
 
 // --- NUEVO: crear póliza desde evento (genera movimientos automáticamente)
-export async function createPolizaFromEvento(polizaPayload, evento) {
-    // 1) Validaciones mínimas de FKs
-    await ensureExists(TipoPoliza,      polizaPayload.id_tipopoliza, 'TipoPoliza');
-    await ensureExists(PeriodoContable, polizaPayload.id_periodo,    'PeriodoContable');
-    await ensureExists(Usuario,         polizaPayload.id_usuario,    'Usuario');
-    await ensureExists(CentroCosto,     polizaPayload.id_centro,     'Centro de Costo');
 
-    if (!polizaPayload.folio)    throw httpError('folio requerido');
-    if (!polizaPayload.concepto) throw httpError('concepto requerido');
-
-    // 2) Expandir evento a movimientos (sin CFDI)
-    const movimientos = await expandEventoToMovimientos(evento);
-    if (!Array.isArray(movimientos) || movimientos.length < 2) {
-        throw httpError('No se cumple partida doble generada');
-    }
-
-    // 3) Transacción: validar periodo abierto y crear póliza + movimientos
-    return sequelize.transaction(async (t) => {
-        await ensurePeriodoAbierto(polizaPayload.id_periodo, t);
-
-        const pol = await Poliza.create(polizaPayload, { transaction: t });
-
-        const normalizados = [];
-            for (const m of movimientos) {
-                const { id_cuenta } = await assertCuentaPosteable(
-                    { id_cuenta: m.id_cuenta, codigo: m.codigo },
-                    t
-                );
-                normalizados.push({ ...m, id_cuenta, id_poliza: pol.id_poliza });
-            }
-
-            await MovimientoPoliza.bulkCreate(normalizados, { transaction: t });
-            return pol;
-        });
-}
 
 // --- NUEVO: agregar movimientos generados desde evento a una póliza existente
 export async function expandEventoAndAddMovimientos(id_poliza, evento) {

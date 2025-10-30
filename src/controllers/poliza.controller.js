@@ -2,22 +2,46 @@ import * as polizaService from '../services/poliza.service.js';
 import { expandEventoToMovimientos } from '../services/asientos-motor.js';
 import { normalizeMovimientosInput } from '../utils/mov-normalizer.js';
 
-export const createPoliza = async (req, res, next) => {
-    try {
-        const { movimientos = [], ...payload } = req.body;
-
-        const movs = normalizeMovimientosInput(movimientos, {
-        defaultFecha: payload.fecha_creacion ?? payload.fecha ?? null,
-        defaultCc:    req.body.cc ?? payload.id_centro ?? null,
-        uiCargoEs0:   true, 
-        });
-
-        const result = await polizaService.createPoliza(payload, { movimientos: movs });
-        res.status(201).json(result);
-    } catch (err) {
-        next(err);
-    }
+// arriba del handler
+const esCuadrada = (movs = []) => {
+  const n = (v) => (v == null || v === '' ? 0 : Number(v) || 0);
+  const debe  = movs.filter(m => String(m.operacion) === '0').reduce((s, m) => s + n(m.monto), 0);
+  const haber = movs.filter(m => String(m.operacion) === '1').reduce((s, m) => s + n(m.monto), 0);
+  return { ok: Math.abs(debe - haber) <= 0.001 && debe > 0, diff: +(debe - haber).toFixed(2) };
 };
+
+export const createPoliza = async (req, res, next) => {
+  try {
+    const { movimientos = [], ...payload } = req.body;
+
+    const movs = normalizeMovimientosInput(movimientos, {
+      defaultFecha: payload.fecha_creacion ?? payload.fecha ?? null,
+      defaultCc:    req.body.cc ?? payload.id_centro ?? null,
+      uiCargoEs0:   true,
+    });
+
+    const { ok, diff } = esCuadrada(movs);
+
+    // Estado SIEMPRE válido para el ENUM
+    const base = {
+      ...payload,
+      estado: payload.estado ?? 'Por revisar',
+    };
+
+    // Marca visible en concepto si no hay campos dedicados aún
+    if (!ok) {
+      base.concepto = `${payload.concepto} [NO CUADRADA Δ=${diff}]`;
+    }
+
+    // Usa el servicio permisivo (no valida partida doble)
+    const result = await polizaService.createPolizaPermisiva(base, { movimientos: movs, _diff: diff, _cuadrada: ok });
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+
 
 export const createPolizaFromEventoFlat = async (req, res, next) => {
     try {
