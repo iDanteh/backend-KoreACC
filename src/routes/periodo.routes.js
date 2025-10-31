@@ -43,6 +43,8 @@ router.post('/generar', authenticateJWT, ensureNotRevoked, requireFreshPassword(
     [
         body('id_ejercicio').isInt({ min: 1 }),
         body('frecuencia').isIn(['SEMANAL', 'QUINCENAL', 'MENSUAL', 'ANUAL']),
+        body('id_usuario').isInt({ min: 1 }),
+        body('id_centro').isInt({ min: 1 }),
     ],
     generarPeriodosCtrl
 );
