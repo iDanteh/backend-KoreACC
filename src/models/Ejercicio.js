@@ -10,6 +10,7 @@ EjercicioContable.init({
     fecha_inicio: { type: DataTypes.DATEONLY, allowNull: false },
     fecha_fin: { type: DataTypes.DATEONLY, allowNull: false },
     esta_abierto: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    is_selected: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
 }, {

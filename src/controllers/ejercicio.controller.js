@@ -67,8 +67,31 @@ export async function abrirEjercicioCtrl(req, res, next) {
 
 export async function cerrarEjercicioCtrl(req, res, next) {
   try {
-    const item = await cerrarEjercicio(req.params.id);
-    if (!item) return res.status(404).json({ message: 'No encontrado' });
-    res.json(item);
+    const id_ejercicio = Number(req.params.id);
+    const { cuentaResultadosId, traspasarACapital, cuentaCapitalId } = req.body;
+
+    const id_usuario = req.user?.id_usuario || req.body.id_usuario;
+    const id_centro  = req.user?.id_centro_default || req.body.id_centro;
+
+    if (!id_usuario || !id_centro) {
+      return res.status(400).json({ message: 'Se requiere id_usuario e id_centro para cerrar el ejercicio.' });
+    }
+    if (!cuentaResultadosId) {
+      return res.status(400).json({ message: 'Se requiere cuentaResultadosId para generar la póliza de cierre.' });
+    }
+    if (traspasarACapital && !cuentaCapitalId) {
+      return res.status(400).json({ message: 'Indica cuentaCapitalId si traspasarACapital = true.' });
+    }
+
+    const out = await cerrarEjercicio({
+      id_ejercicio,
+      id_usuario,
+      id_centro,
+      cuentaResultadosId,
+      traspasarACapital: !!traspasarACapital,
+      cuentaCapitalId: cuentaCapitalId ?? null,
+    });
+
+    res.status(200).json(out);
   } catch (e) { next(e); }
 }
