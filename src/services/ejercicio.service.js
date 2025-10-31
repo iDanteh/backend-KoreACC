@@ -1,6 +1,7 @@
-import { Op } from 'sequelize';
-import { EjercicioContable, Empresa, PeriodoContable, Poliza, sequelize } from '../models/index.js';
+import { Op, QueryTypes } from 'sequelize';
+import { EjercicioContable, Empresa, PeriodoContable, TipoPoliza, Poliza, MovimientoPoliza, sequelize } from '../models/index.js';
 import { httpError } from '../utils/helper-poliza.js';
+import { recalcularAperturaTrasCierre } from './apertura-recalc.service.js';
 
 function assertFechas(data) {
   const ini = new Date(data.fecha_inicio);
@@ -136,67 +137,208 @@ export async function abrirEjercicio(id, { cerrar_otros = true } = {}) {
   return item;
 }
 
-export async function cerrarEjercicio(id_ejercicio) {
-  return sequelize.transaction(async (t) => {
-    const ejercicio = await EjercicioContable.findByPk(id_ejercicio, {
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-    if (!ejercicio) return null;
-    if (!ejercicio.esta_abierto) return true;
+async function getTipoPolizaIdCierre() {
+  const tp = await TipoPoliza.findOne({ where: { naturaleza: 'cierre' } });
+  if (!tp) throw new Error('Tipo de póliza "cierre" no configurado');
+  return tp.id_tipopoliza;
+}
 
-    // 1) Validar que no existan periodos abiertos del mismo ejercicio
-    const existeAbierto = await PeriodoContable.count({
-      where: { id_ejercicio, esta_abierto: true },
-      transaction: t,
-    });
-    if (existeAbierto > 0) {
-      throw httpError('No se puede cerrar: hay periodos abiertos.', 409);
-    }
-
-    // 2) Validar pólizas "Por revisar" del mismo ejercicio
-    const periodoIds = await PeriodoContable.findAll({
-      where: { id_ejercicio },
-      attributes: ['id_periodo'],
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    }).then(rows => rows.map(r => r.id_periodo));
-
-    if (periodoIds.length === 0) {
-      await ejercicio.update(
-        { esta_abierto: false, updated_at: new Date() },
-        { transaction: t }
-      );
-      return true;
-    }
-
-    const polizaPendiente = await Poliza.findOne({
-      where: { estado: 'Por revisar', id_periodo: { [Op.in]: periodoIds } },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-    if (polizaPendiente) {
-      throw httpError('No se puede cerrar: hay pólizas por revisar.', 409);
-    }
-
-    // 3) Pasar todas las "Aprobada" a "Contabilizada" del ejercicio
-    await Poliza.update(
-      { estado: 'Contabilizada', updated_at: new Date() },
-      {
-        where: {
-          estado: 'Aprobada',
-          id_periodo: { [Op.in]: periodoIds },
-        },
-        transaction: t,
-      }
-    );
-
-    // 4) Cerrar ejercicio
-    await ejercicio.update(
-      { esta_abierto: false, updated_at: new Date() },
-      { transaction: t }
-    );
-
-    return true;
+async function getUltimoPeriodoDelEjercicio(id_ejercicio) {
+  return PeriodoContable.findOne({
+    where: { id_ejercicio },
+    order: [['fecha_fin', 'DESC']],
   });
+}
+
+async function getEjercicioSiguiente(id_empresa, anio) {
+  return EjercicioContable.findOne({
+    where: { id_empresa, anio: { [Op.gt]: anio } },
+    order: [['anio', 'ASC']],
+  });
+}
+
+async function obtenerSaldosResultadosPorCuenta(id_ejercicio) {
+  const rows = await sequelize.query(`
+    SELECT c.id AS id_cuenta,
+           c.tipo,
+           SUM(CASE WHEN m.operacion='0' THEN m.monto ELSE 0 END) AS cargos,
+           SUM(CASE WHEN m.operacion='1' THEN m.monto ELSE 0 END) AS abonos
+    FROM movimiento_poliza m
+    JOIN poliza p  ON p.id_poliza = m.id_poliza
+    JOIN periodo_contable per ON per.id_periodo = p.id_periodo
+    JOIN ejercicio_contable e  ON e.id_ejercicio = per.id_ejercicio
+    JOIN cuentas c ON c.id = m.id_cuenta
+    WHERE e.id_ejercicio = :ej
+      AND c.tipo IN ('INGRESO','GASTO')
+    GROUP BY c.id, c.tipo
+  `, { replacements: { ej: id_ejercicio }, type: QueryTypes.SELECT });
+
+  // Para cerrar: 
+  //  - INGRESO: saldo = abonos - cargos  (si >0 se cierra con CARGO en la cuenta de ingreso)
+  //  - GASTO:   saldo = cargos - abonos  (si >0 se cierra con ABONO en la cuenta de gasto)
+  return rows.map(r => {
+    const cargos = Number(r.cargos) || 0;
+    const abonos = Number(r.abonos) || 0;
+    const saldo = (r.tipo === 'INGRESO') ? (abonos - cargos) : (cargos - abonos);
+    return { id_cuenta: r.id_cuenta, tipo: r.tipo, saldo };
+  }).filter(x => Math.abs(x.saldo) > 0.00005);
+}
+
+export async function cerrarEjercicio({
+  id_ejercicio,
+  id_usuario,
+  id_centro,
+  cuentaResultadosId,
+  traspasarACapital = false,
+  cuentaCapitalId = null,
+}) {
+  const ejercicio = await EjercicioContable.findByPk(id_ejercicio);
+  if (!ejercicio) throw new Error('Ejercicio no encontrado');
+
+  const ultimoPeriodo = await getUltimoPeriodoDelEjercicio(id_ejercicio);
+  if (!ultimoPeriodo) throw new Error('El ejercicio no tiene períodos');
+
+  const id_tipopoliza_cierre = await getTipoPolizaIdCierre();
+  const fechaCierre = ultimoPeriodo.fecha_fin;
+
+  const saldos = await obtenerSaldosResultadosPorCuenta(id_ejercicio);
+
+  let t = await sequelize.transaction();
+  try {
+    // 1) Upsert póliza de cierre
+    const folio = `CIERRE-${ejercicio.id_empresa}-${ejercicio.anio}`;
+    const concepto = `CIERRE DEL EJERCICIO ${ejercicio.anio}`;
+
+    let polizaCierre = await Poliza.findOne({
+      where: { id_periodo: ultimoPeriodo.id_periodo, id_tipopoliza: id_tipopoliza_cierre, folio },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!polizaCierre) {
+      polizaCierre = await Poliza.create({
+        id_tipopoliza: id_tipopoliza_cierre,
+        id_periodo: ultimoPeriodo.id_periodo,
+        id_usuario,
+        id_centro,
+        folio,
+        concepto,
+        estado: 'Por revisar',
+        fecha_creacion: fechaCierre,
+      }, { transaction: t });
+    } else {
+      polizaCierre.concepto = concepto;
+      await polizaCierre.save({ transaction: t });
+      await MovimientoPoliza.destroy({ where: { id_poliza: polizaCierre.id_poliza }, transaction: t });
+    }
+
+    // 2) Movimientos de cierre resultados vs cuentaResultadosId
+    const movs = [];
+    let totalIngresos = 0;
+    let totalGastos = 0;
+
+    for (const s of saldos) {
+      if (s.tipo === 'INGRESO' && Math.abs(s.saldo) > 0.00005) {
+        const operCuenta   = s.saldo > 0 ? '0' : '1';
+        const operResultados = s.saldo > 0 ? '1' : '0';
+        const monto = Math.abs(s.saldo);
+        movs.push({ id_poliza: polizaCierre.id_poliza, id_cuenta: s.id_cuenta,        fecha: fechaCierre, operacion: operCuenta,     monto, cc: id_centro });
+        movs.push({ id_poliza: polizaCierre.id_poliza, id_cuenta: cuentaResultadosId, fecha: fechaCierre, operacion: operResultados, monto, cc: id_centro });
+        totalIngresos += s.saldo;
+      }
+      if (s.tipo === 'GASTO' && Math.abs(s.saldo) > 0.00005) {
+        const operCuenta   = s.saldo > 0 ? '1' : '0';
+        const operResultados = s.saldo > 0 ? '0' : '1';
+        const monto = Math.abs(s.saldo);
+        movs.push({ id_poliza: polizaCierre.id_poliza, id_cuenta: s.id_cuenta,        fecha: fechaCierre, operacion: operCuenta,     monto, cc: id_centro });
+        movs.push({ id_poliza: polizaCierre.id_poliza, id_cuenta: cuentaResultadosId, fecha: fechaCierre, operacion: operResultados, monto, cc: id_centro });
+        totalGastos += s.saldo;
+      }
+    }
+
+    if (movs.length) {
+      await MovimientoPoliza.bulkCreate(movs, { transaction: t });
+    }
+
+    if (traspasarACapital) {
+      if (!cuentaCapitalId) throw new Error('cuentaCapitalId requerido para traspasar a capital');
+
+      const utilidad = totalIngresos - totalGastos;
+      if (Math.abs(utilidad) > 0.00005) {
+        const folio2 = `CIERRE-CAP-${ejercicio.id_empresa}-${ejercicio.anio}`;
+        const concepto2 = `TRASPASO RESULTADO ${ejercicio.anio} A CAPITAL`;
+
+        let polizaCap = await Poliza.findOne({
+          where: { id_periodo: ultimoPeriodo.id_periodo, id_tipopoliza: id_tipopoliza_cierre, folio: folio2 },
+          transaction: t,
+          lock: t.LOCK.UPDATE,
+        });
+
+        if (!polizaCap) {
+          polizaCap = await Poliza.create({
+            id_tipopoliza: id_tipopoliza_cierre,
+            id_periodo: ultimoPeriodo.id_periodo,
+            id_usuario,
+            id_centro,
+            folio: folio2,
+            concepto: concepto2,
+            estado: 'Por revisar',
+            fecha_creacion: fechaCierre,
+          }, { transaction: t });
+        } else {
+          polizaCap.concepto = concepto2;
+          await polizaCap.save({ transaction: t });
+          await MovimientoPoliza.destroy({ where: { id_poliza: polizaCap.id_poliza }, transaction: t });
+        }
+
+        const monto = Math.abs(utilidad);
+        if (utilidad > 0) {
+          await MovimientoPoliza.bulkCreate([
+            { id_poliza: polizaCap.id_poliza, id_cuenta: cuentaResultadosId, fecha: fechaCierre, operacion: '0', monto, cc: id_centro },
+            { id_poliza: polizaCap.id_poliza, id_cuenta: cuentaCapitalId,    fecha: fechaCierre, operacion: '1', monto, cc: id_centro },
+          ], { transaction: t });
+        } else {
+          await MovimientoPoliza.bulkCreate([
+            { id_poliza: polizaCap.id_poliza, id_cuenta: cuentaResultadosId, fecha: fechaCierre, operacion: '1', monto, cc: id_centro },
+            { id_poliza: polizaCap.id_poliza, id_cuenta: cuentaCapitalId,    fecha: fechaCierre, operacion: '0', monto, cc: id_centro },
+          ], { transaction: t });
+        }
+      }
+    }
+
+    ejercicio.esta_abierto = false;
+    await ejercicio.save({ transaction: t });
+
+    await t.commit();
+
+    // 5) Recalcular/apretar apertura del ejercicio siguiente (en SU propio try/catch)
+    const ejercicioDestino = await getEjercicioSiguiente(ejercicio.id_empresa, ejercicio.anio);
+    let aperturaActualizada = null;
+    if (ejercicioDestino) {
+      try {
+        aperturaActualizada = await recalcularAperturaTrasCierre({
+          id_empresa: ejercicio.id_empresa,
+          id_ejercicio_cerrado: ejercicio.id_ejercicio,
+          id_ejercicio_destino: ejercicioDestino.id_ejercicio,
+          id_usuario,
+          id_centro,
+        });
+      } catch (e) {
+        aperturaActualizada = { error: e.message };
+      }
+    }
+
+    return {
+      cerrado: true,
+      poliza_cierre_creada: true,
+      traspaso_capital: !!traspasarACapital,
+      ejercicio_siguiente: ejercicioDestino?.anio ?? null,
+      apertura_actualizada: aperturaActualizada,
+    };
+  } catch (e) {
+    try {
+      if (t && !t.finished) await t.rollback();
+    } catch {  }
+    throw e;
+  }
 }

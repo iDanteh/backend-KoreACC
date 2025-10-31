@@ -1,9 +1,7 @@
-// services/periodo-autogen.service.js
 import { Op, Sequelize } from 'sequelize';
 import { sequelize } from '../config/db.js';
-import { PeriodoContable, EjercicioContable } from '../models/index.js';
+import { PeriodoContable, EjercicioContable, Poliza, MovimientoPoliza, TipoPoliza } from '../models/index.js';
 
-// Utilidades de fecha (UTC)
 function parseDateUTC(dateStr) { const [y,m,d]=dateStr.split('-').map(Number); return new Date(Date.UTC(y,m-1,d)); }
 function fmtUTC(d) { return d.toISOString().slice(0,10); }
 function firstDayOfMonthUTC(d) { return fmtUTC(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))); }
@@ -12,7 +10,6 @@ function addDaysUTCStr(dateStr, days){ const d=parseDateUTC(dateStr); d.setUTCDa
 function minDateStr(a,b){ return (parseDateUTC(a)<=parseDateUTC(b))?a:b; }
 function maxDateStr(a,b){ return (parseDateUTC(a)>=parseDateUTC(b))?a:b; }
 
-// Lunes = 1 ... Domingo = 7
 function dayOfWeekISO(d){ const wd=d.getUTCDay(); return wd===0?7:wd; }
 function nextMonday(dateStr){
     const d=parseDateUTC(dateStr);
@@ -22,7 +19,6 @@ function nextMonday(dateStr){
     return fmtUTC(d);
 }
 
-// Generadores
 function* generarSemanal(desdeYYYYMMDD, hastaYYYYMMDD) {
     let ini = nextMonday(desdeYYYYMMDD);
     while (parseDateUTC(ini) <= parseDateUTC(hastaYYYYMMDD)) {
@@ -63,7 +59,6 @@ function* generarQuincenal(desdeYYYYMMDD, hastaYYYYMMDD) {
     }
 }
 
-// Mensual: bloques por mes calendario
 function* generarMensual(desdeYYYYMMDD, hastaYYYYMMDD) {
     let cursor = desdeYYYYMMDD;
     while (parseDateUTC(cursor) <= parseDateUTC(hastaYYYYMMDD)) {
@@ -79,29 +74,180 @@ function* generarMensual(desdeYYYYMMDD, hastaYYYYMMDD) {
     }
 }
 
-// Anual: bloque único del tramo vigente
 function* generarAnual(desdeYYYYMMDD, hastaYYYYMMDD) {
     yield { fecha_inicio: desdeYYYYMMDD, fecha_fin: hastaYYYYMMDD, tipo_periodo: 'ANUAL' };
 }
 
-// Verificación de solapes en DB 
 async function existeSolape({ id_ejercicio, desde, hasta }) {
     const ya = await PeriodoContable.findOne({
-        where: {
-        id_ejercicio,
-        [Op.and]: [
-            { fecha_inicio: { [Op.lte]: hasta } },
-            { fecha_fin:     { [Op.gte]: desde } },
-        ],
-        },
+        where: { id_ejercicio, [Op.and]: [{ fecha_inicio: { [Op.lte]: hasta } }, { fecha_fin: { [Op.gte]: desde } }] },
     });
     return !!ya;
 }
 
-// Servicio principal
-// opciones: { id_ejercicio, frecuencia: 'SEMANAL'|'QUINCENAL'|'MENSUAL'|'ANUAL' }
+async function getTipoPolizaIdApertura() {
+    const tp = await TipoPoliza.findOne({ where: { naturaleza: 'apertura' } });
+    if (!tp) throw new Error('Tipo de póliza "apertura" no configurado');
+    return tp.id_tipopoliza;
+}
+
+async function getEjercicioAnterior(id_empresa, anioActual) {
+    return EjercicioContable.findOne({
+        where: { id_empresa, anio: { [Op.lt]: anioActual } },
+        order: [['anio', 'DESC']],
+    });
+}
+
+export async function getPrimerPeriodoDelEjercicio(id_ejercicio) {
+    return PeriodoContable.findOne({
+        where: { id_ejercicio },
+        order: [['fecha_inicio', 'ASC']],
+    })
+}
+
+export async function obtenerSaldosFinalesBalancePorCuenta(id_ejercicio_anterior) {
+    const rows = await sequelize.query(`
+        SELECT m.id_cuenta,
+            SUM(CASE WHEN m.operacion = '0' THEN m.monto ELSE 0 END) AS cargos,
+            SUM(CASE WHEN m.operacion = '1' THEN m.monto ELSE 0 END) AS abonos
+        FROM movimiento_poliza m
+        JOIN poliza p           ON p.id_poliza = m.id_poliza
+        JOIN periodo_contable per ON per.id_periodo = p.id_periodo
+        JOIN ejercicio_contable e  ON e.id_ejercicio = per.id_ejercicio
+        JOIN cuentas c          ON c.id = m.id_cuenta
+        WHERE e.id_ejercicio = :ej
+        AND c.tipo IN ('ACTIVO','PASIVO','CAPITAL')
+        GROUP BY m.id_cuenta
+    `, { replacements: { ej: id_ejercicio_anterior }, type: Sequelize.QueryTypes.SELECT });
+
+    return rows
+        .map(r => ({ id_cuenta: r.id_cuenta, neto: Number(r.cargos) - Number(r.abonos) }))
+        .filter(x => Math.abs(x.neto) > 0.00005);
+}
+
+// Crea o actualiza la póliza de apertura del ejercicio destino, asociada a su primer periodo. Si "provisional" true, marca en concepto.
+export async function upsertPolizaApertura({
+    id_empresa, ejercicioDestino, primerPeriodo, saldos, id_usuario, id_centro, provisional, t,
+    }) {
+    const id_tipopoliza = await getTipoPolizaIdApertura();
+
+    const folio = `APERTURA-${id_empresa}-${ejercicioDestino.anio}`;
+    const conceptoBase = `APERTURA EJERCICIO ${ejercicioDestino.anio}${provisional ? ' (provisional)' : ''}`;
+
+    // Busca si ya existe la de apertura en ese primer período (para actualizar)
+    let poliza = await Poliza.findOne({
+        where: {
+        id_periodo: primerPeriodo.id_periodo,
+        id_tipopoliza,
+        folio,
+        },
+        transaction: t,
+        lock: t ? t.LOCK.UPDATE : undefined,
+    });
+
+    if (!poliza) {
+        poliza = await Poliza.create({
+        id_tipopoliza,
+        id_periodo: primerPeriodo.id_periodo,
+        id_usuario,
+        id_centro,
+        folio,
+        concepto: conceptoBase,
+        estado: 'Por revisar',
+        fecha_creacion: primerPeriodo.fecha_inicio,
+        }, { transaction: t });
+    } else {
+        if (poliza.concepto !== conceptoBase) {
+        poliza.concepto = conceptoBase;
+        await poliza.save({ transaction: t });
+        }
+        await MovimientoPoliza.destroy({ where: { id_poliza: poliza.id_poliza }, transaction: t });
+    }
+
+    // Inserta movimientos (partida doble implícita por suma neta = 0 entre todas)
+    const fechaMov = primerPeriodo.fecha_inicio;
+    const movimientos = saldos.map(s => ({
+        id_poliza: poliza.id_poliza,
+        id_cuenta: s.id_cuenta,
+        fecha: fechaMov,
+        operacion: s.neto >= 0 ? '0' : '1',      // neto>0 => cargo; neto<0 => abono
+        monto: Math.abs(s.neto),
+        cc: id_centro,
+    }));
+
+    if (movimientos.length > 0) {
+        await MovimientoPoliza.bulkCreate(movimientos, { transaction: t });
+    }
+
+    return poliza;
+    }
+
+    /**
+     * Punto de orquestación tras crear periodos: genera/aprieta apertura si procede.
+     * Si faltan id_usuario o id_centro, no crea póliza y devuelve un aviso.
+     */
+    async function generarOAjustarAperturaSiCorresponde({
+    ejercicioActual, creados, id_usuario, id_centro,
+    }) {
+    // Hallar primer período del ejercicio actual; si no se creó en esta corrida,
+    // buscar el que ya exista con menor fecha_inicio.
+    const primerPeriodo = creados.length
+        ? creados.slice().sort((a,b)=>a.fecha_inicio.localeCompare(b.fecha_inicio))[0]
+        : await getPrimerPeriodoDelEjercicio(ejercicioActual.id_ejercicio);
+
+    if (!primerPeriodo) {
+        return { aviso: 'No hay periodos para asociar la póliza de apertura.' };
+    }
+
+    const ejercicioAnterior = await getEjercicioAnterior(ejercicioActual.id_empresa, ejercicioActual.anio);
+    if (!ejercicioAnterior) {
+        return {
+        aviso: 'No existen ejercicios previos. Sugerencia: cree la póliza de apertura desde la sección de pólizas (saldo inicial manual).',
+        };
+    }
+
+    // Si no tengo contexto de usuario/centro, no creo nada pero aviso.
+    if (!id_usuario || !id_centro) {
+        return {
+        aviso: 'Se detectó ejercicio previo, pero falta id_usuario o id_centro. Sugerencia: genere la póliza de apertura desde la sección de pólizas.',
+        };
+    }
+
+    // Criterio “pendiente de cierre”: usa tu bandera esta_abierto
+    const pendienteCierre = !!ejercicioAnterior.esta_abierto;
+
+    // Trae saldos del ejercicio anterior (hasta su fin). Si luego cierras y cambian,
+    // volveremos a recalcular al cerrar.
+    const saldos = await obtenerSaldosFinalesBalancePorCuenta(ejercicioAnterior.id_ejercicio);
+
+    const t = await sequelize.transaction();
+    try {
+        const poliza = await upsertPolizaApertura({
+        id_empresa: ejercicioActual.id_empresa,
+        ejercicioDestino: ejercicioActual,
+        primerPeriodo,
+        saldos,
+        id_usuario,
+        id_centro,
+        provisional: pendienteCierre,
+        t,
+        });
+        await t.commit();
+
+        return {
+        poliza_apertura: { id_poliza: poliza.id_poliza, provisional: pendienteCierre },
+        mensaje: pendienteCierre
+            ? 'Póliza de apertura creada como PROVISIONAL. Al cerrar el ejercicio anterior se recalculará.'
+            : 'Póliza de apertura creada con saldos definitivos del ejercicio anterior.',
+        };
+    } catch (e) {
+        await t.rollback();
+        throw e;
+    }
+}
+
 export async function generarPeriodosDesdeMesActual(opciones) {
-    const { id_ejercicio, frecuencia } = opciones;
+    const { id_ejercicio, frecuencia, id_usuario, id_centro } = opciones;
 
     const ejercicio = await EjercicioContable.findByPk(id_ejercicio);
     if (!ejercicio) { const err = new Error('Ejercicio no encontrado'); err.status = 404; throw err; }
@@ -112,7 +258,6 @@ export async function generarPeriodosDesdeMesActual(opciones) {
     const hasta = ejercicio.fecha_fin;
 
     if (parseDateUTC(desde) > parseDateUTC(hasta)) {
-        // Si el ejercicio terminó antes del mes actual, no hay nada que generar
         return { total: 0, creados: [], omitidos: [], aviso: 'Nada por generar: el ejercicio termina antes del mes actual.' };
     }
 
@@ -151,9 +296,23 @@ export async function generarPeriodosDesdeMesActual(opciones) {
         }
 
         await t.commit();
-        return { total: creados.length + omitidos.length, creados, omitidos, desde, hasta };
     } catch (e) {
         await t.rollback();
         throw e;
     }
+    const resultadoApertura = await generarOAjustarAperturaSiCorresponde({
+        ejercicioActual: ejercicio,
+        creados,
+        id_usuario,
+        id_centro, 
+    });
+
+    return {
+        total: creados.length + omitidos.length,
+        creados,
+        omitidos,
+        desde,
+        hasta,
+        ...(resultadoApertura || {}),
+    };
 }
