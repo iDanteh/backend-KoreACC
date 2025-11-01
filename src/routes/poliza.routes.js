@@ -1,152 +1,211 @@
+// routes/poliza.routes.js
 import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticateJWT, ensureNotRevoked } from '../middlewares/auth.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
-import { createPoliza, listPolizas, getPoliza,updatePoliza,deletePoliza,changeEstadoPoliza,addMovimientoToPoliza,
-    addMovimientosToPoliza, getPolizaWithMovimientos, changePolizaRevisada, createPolizaFromEventoFlat, expandEventoAndAddMovimientosFlat
-    } from '../controllers/poliza.controller.js';
+
+import {
+  createPoliza,
+  listPolizas,
+  getPoliza,
+  updatePoliza,
+  deletePoliza,
+  changeEstadoPoliza,
+  addMovimientoToPoliza,
+  addMovimientosToPoliza,
+  getPolizaWithMovimientos,
+  changePolizaRevisada,
+  createPolizaFromEventoFlat,
+  expandEventoAndAddMovimientosFlat
+} from '../controllers/poliza.controller.js';
 
 const router = Router();
 
-router.get('/',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
-    [
-        query('id_tipopoliza').optional().isInt({ min: 1 }),
-        query('id_periodo').optional().isInt({ min: 1 }),
-        query('id_usuario').optional().isInt({ min: 1 }),
-        query('id_centro').optional().isInt({ min: 1 }),
-        query('estado').optional().isIn(['Por revisar', 'Aprobada', 'Contabilizada']),
-        query('q').optional().isString().trim(),
-        query('fecha_desde').optional().isISO8601(),
-        query('fecha_hasta').optional().isISO8601(),
-        query('page').optional().isInt({ min: 1 }).toInt(),
-        query('pageSize').optional().isInt({ min: 1, max: 200 }).toInt(),
-    ],
-    listPolizas
+router.get(
+  '/',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [
+    query('id_tipopoliza').optional().isInt({ min: 1 }),
+    query('id_periodo').optional().isInt({ min: 1 }),
+    query('id_usuario').optional().isInt({ min: 1 }),
+    query('id_centro').optional().isInt({ min: 1 }),
+    query('estado').optional().isIn(['Por revisar', 'Aprobada', 'Contabilizada']),
+    query('q').optional().isString().trim(),
+    query('fecha_desde').optional().isISO8601(),
+    query('fecha_hasta').optional().isISO8601(),
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('pageSize').optional().isInt({ min: 1, max: 200 }).toInt(),
+  ],
+  listPolizas
 );
 
-router.get('/:id',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
-    [param('id').isInt({ min: 1 })],
-    getPoliza
+router.get(
+  '/:id',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [param('id').isInt({ min: 1 })],
+  getPoliza
 );
 
-router.get('/:id/movimientos', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
-    [param('id').isInt({ min: 1 })],
-    getPolizaWithMovimientos
+router.get(
+  '/:id/movimientos',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [param('id').isInt({ min: 1 })],
+  getPolizaWithMovimientos
 );
 
-router.post('/', authenticateJWT,ensureNotRevoked,requireFreshPassword(),
-    [
-        body('id_tipopoliza').isInt({ min: 1 }),
-        body('id_periodo').isInt({ min: 1 }),
-        body('id_usuario').isInt({ min: 1 }),
-        body('id_centro').isInt({ min: 1 }),
-        body('folio').isString().trim().notEmpty(),
-        body('concepto').isString().trim().notEmpty(),
-        body('movimientos').optional().isArray(),
-    ],
-    createPoliza
+router.post(
+  '/',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [
+    body('id_tipopoliza').isInt({ min: 1 }),
+    body('id_periodo').isInt({ min: 1 }),
+    body('id_usuario').isInt({ min: 1 }),
+    body('id_centro').isInt({ min: 1 }),
+    body('folio').isString().trim().notEmpty(),
+    body('concepto').isString().trim().notEmpty(),
+    body('movimientos').optional().isArray(),
+  ],
+  createPoliza
 );
 
 // --- NUEVA: crear póliza desde EVENTO ---
-router.post('/from-evento',
-    authenticateJWT, ensureNotRevoked, requireFreshPassword(),
-    [
-        // Encabezado igual al create original
-        body('id_tipopoliza').isInt({ min: 1 }),
-        body('id_periodo').isInt({ min: 1 }),
-        body('id_usuario').isInt({ min: 1 }),
-        body('id_centro').isInt({ min: 1 }),
-        body('folio').isString().trim().notEmpty(),
-        body('concepto').isString().trim().notEmpty(),
+router.post(
+  '/from-evento',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [
+    // Encabezado igual al create original
+    body('id_tipopoliza').isInt({ min: 1 }),
+    body('id_periodo').isInt({ min: 1 }),
+    body('id_usuario').isInt({ min: 1 }),
+    body('id_centro').isInt({ min: 1 }),
+    body('folio').isString().trim().notEmpty(),
+    body('concepto').isString().trim().notEmpty(),
 
-        // Motor (obligatorios)
-        body('tipo_operacion').isIn(['ingreso','egreso']),
-        body('monto_base').isFloat({ min: 0 }),
-        body('fecha_operacion').isISO8601(),
-        body('id_empresa').isInt({ min: 1 }),
-        body('medio_cobro_pago').isIn(['bancos','caja','clientes','proveedores']),
-        body('id_cuenta_contrapartida').isInt({ min: 1 }),
+    // Motor (obligatorios)
+    body('tipo_operacion').isIn(['ingreso', 'egreso']),
+    body('monto_base').isFloat({ min: 0 }),
+    body('fecha_operacion').isISO8601(),
+    body('id_empresa').isInt({ min: 1 }),
+    body('medio_cobro_pago').isIn(['bancos', 'caja', 'clientes', 'proveedores']),
+    body('id_cuenta_contrapartida').isInt({ min: 1 }),
 
-        // Defaults opcionales para movimientos
-        body('cliente').optional().isString().trim(),
-        body('ref_serie_venta').optional().isString().trim(),
-        body('cc').optional().isInt({ min: 1 }),
-    ],
-    createPolizaFromEventoFlat
+    // Defaults opcionales para movimientos
+    body('cliente').optional().isString().trim(),
+    body('ref_serie_venta').optional().isString().trim(),
+    body('cc').optional().isInt({ min: 1 }),
+  ],
+  createPolizaFromEventoFlat
 );
 
 // --- NUEVA: agregar movimientos generados por evento (body plano) a póliza existente ---
-router.post('/:id/expand-evento',
-    authenticateJWT, ensureNotRevoked, requireFreshPassword(),
-    [
-        param('id').isInt({ min: 1 }),
+router.post(
+  '/:id/expand-evento',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [
+    param('id').isInt({ min: 1 }),
 
-        // Motor (obligatorios)
-        body('tipo_operacion').isIn(['ingreso','egreso']),
-        body('monto_base').isFloat({ min: 0 }),
-        body('fecha_operacion').isISO8601(),
-        body('id_empresa').isInt({ min: 1 }),
-        body('medio_cobro_pago').isIn(['bancos','caja','clientes','proveedores']),
-        body('id_cuenta_contrapartida').isInt({ min: 1 }),
+    // Motor (obligatorios)
+    body('tipo_operacion').isIn(['ingreso', 'egreso']),
+    body('monto_base').isFloat({ min: 0 }),
+    body('fecha_operacion').isISO8601(),
+    body('id_empresa').isInt({ min: 1 }),
+    body('medio_cobro_pago').isIn(['bancos', 'caja', 'clientes', 'proveedores']),
+    body('id_cuenta_contrapartida').isInt({ min: 1 }),
 
-        // Defaults opcionales
-        body('cliente').optional().isString().trim(),
-        body('ref_serie_venta').optional().isString().trim(),
-        body('cc').optional().isInt({ min: 1 }),
-    ],
-    expandEventoAndAddMovimientosFlat
+    // Defaults opcionales
+    body('cliente').optional().isString().trim(),
+    body('ref_serie_venta').optional().isString().trim(),
+    body('cc').optional().isInt({ min: 1 }),
+  ],
+  expandEventoAndAddMovimientosFlat
 );
 
-router.put('/:id',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
-    [
-        param('id').isInt({ min: 1 }),
-        body('id_tipopoliza').optional().isInt({ min: 1 }),
-        body('id_periodo').optional().isInt({ min: 1 }),
-        body('id_usuario').optional().isInt({ min: 1 }),
-        body('id_centro').optional().isInt({ min: 1 }),
-        body('estado').optional().isIn(['Por revisar', 'Aprobada', 'Contabilizada']),
-        body('concepto').optional().isString().trim(),
-    ],
-    updatePoliza
+router.put(
+  '/:id',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [
+    param('id').isInt({ min: 1 }),
+    body('id_tipopoliza').optional().isInt({ min: 1 }),
+    body('id_periodo').optional().isInt({ min: 1 }),
+    body('id_usuario').optional().isInt({ min: 1 }),
+    body('id_centro').optional().isInt({ min: 1 }),
+    body('estado').optional().isIn(['Por revisar', 'Aprobada', 'Contabilizada']),
+    body('concepto').optional().isString().trim(),
+  ],
+  updatePoliza
 );
 
-router.patch('/:id/estado',authenticateJWT,ensureNotRevoked, requireFreshPassword(),
-    [
-        param('id').isInt({ min: 1 }),
-        body('estado').isIn(['Por revisar', 'Aprobada', 'Contabilizada']),
-    ],
-    changeEstadoPoliza
+router.patch(
+  '/:id/estado',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [
+    param('id').isInt({ min: 1 }),
+    body('estado').isIn(['Por revisar', 'Aprobada', 'Contabilizada']),
+  ],
+  changeEstadoPoliza
 );
 
-router.patch('/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
-    [
-        param('id').isInt({ min: 1 }),
-        body('estado').isIn(['Aprobada']),
-    ],
-    changePolizaRevisada
+router.patch(
+  '/:id',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [
+    param('id').isInt({ min: 1 }),
+    body('estado').isIn(['Aprobada']),
+  ],
+  changePolizaRevisada
 );
 
-router.post('/:id/movimiento',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
-    [
-        param('id').isInt({ min: 1 }),
-        body('id_cuenta').optional().isInt({ min: 1 }),
-        body('operacion').isIn(['0', '1']),
-        body('monto').isDecimal(),
-    ],
-    addMovimientoToPoliza
+router.post(
+  '/:id/movimiento',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [
+    param('id').isInt({ min: 1 }),
+    body('id_cuenta').optional().isInt({ min: 1 }),
+    body('operacion').isIn(['0', '1']),
+    body('monto').isDecimal(),
+  ],
+  addMovimientoToPoliza
 );
 
-router.post('/:id/movimientos',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
-    [
-        param('id').isInt({ min: 1 }),
-        body('movimientos').isArray({ min: 1 }),
-    ],
-    addMovimientosToPoliza
+router.post(
+  '/:id/movimientos',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [
+    param('id').isInt({ min: 1 }),
+    body('movimientos').isArray({ min: 1 }),
+  ],
+  addMovimientosToPoliza
 );
 
-router.delete('/:id',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
-    [param('id').isInt({ min: 1 })],
-    deletePoliza
+router.delete(
+  '/:id',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [param('id').isInt({ min: 1 })],
+  deletePoliza
 );
 
 export default router;
