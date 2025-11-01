@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticateJWT, ensureNotRevoked } from '../middlewares/auth.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
-
+import{ EjercicioContable } from '../models/Ejercicio.js';
 import {
   createEjercicioCtrl,
   listEjerciciosCtrl,
@@ -79,5 +79,33 @@ router.patch('/:id/cerrar',
   [ param('id').isInt({ min: 1 }) ],
   cerrarEjercicioCtrl
 );
+router.put('/:id_ejercicio/select', async (req, res) => {
+  const { id_ejercicio } = req.params;
+
+  try {
+    console.log('📘 Recibido id_ejercicio:', id_ejercicio);
+
+    await EjercicioContable.update(
+      { is_selected: false },
+      { where: {} }
+    );
+
+    const [rowsUpdated] = await EjercicioContable.update(
+      { is_selected: true },
+      { where: { id_ejercicio } }
+    );
+
+    console.log('✅ rowsUpdated:', rowsUpdated);
+
+    if (rowsUpdated === 0) {
+      return res.status(404).json({ message: 'Ejercicio no encontrado' });
+    }
+
+    return res.json({ message: 'Ejercicio actualizado correctamente' });
+  } catch (err) {
+    console.error('🔥 Error en /ejercicios/:id/select:', err);
+    return res.status(500).json({ message: 'Error al actualizar el ejercicio', error: err.message });
+  }
+});
 
 export default router;
