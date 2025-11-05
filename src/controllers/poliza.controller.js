@@ -105,6 +105,19 @@ export const expandEventoAndAddMovimientosFlat = async (req, res, next) => {
   }
 };
 
+export const getFolioSiguiente = async (req, res, next) => {
+  try {
+    const id_tipopoliza = Number(req.query.id_tipopoliza);
+    const id_periodo    = Number(req.query.id_periodo);
+    const id_centro     = req.query.id_centro != null ? Number(req.query.id_centro) : null;
+
+    const result = await polizaService.getFolioSiguienteService({ id_tipopoliza, id_periodo, id_centro });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
 export const getPoliza = async (req, res, next) => {
   try {
     const includeMovimientos = req.query.includeMovimientos === 'true';

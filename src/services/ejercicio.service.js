@@ -2,6 +2,7 @@ import { Op, QueryTypes } from 'sequelize';
 import { EjercicioContable, Empresa, PeriodoContable, TipoPoliza, Poliza, MovimientoPoliza, sequelize } from '../models/index.js';
 import { httpError } from '../utils/helper-poliza.js';
 import { recalcularAperturaTrasCierre } from './apertura-recalc.service.js';
+import { acquireFolioLock, buildFolioString, nextConsecutivo, resolvePeriodoYYYYMM, resolveTipoNombre } from '../utils/folio-helper.js'
 
 function assertFechas(data) {
   const ini = new Date(data.fecha_inicio);
@@ -202,18 +203,31 @@ export async function cerrarEjercicio({
   const fechaCierre = ultimoPeriodo.fecha_fin;
 
   const saldos = await obtenerSaldosResultadosPorCuenta(id_ejercicio);
-
+  
   let t = await sequelize.transaction();
   try {
-    // 1) Upsert póliza de cierre
-    const folio = `CIERRE-${ejercicio.id_empresa}-${ejercicio.anio}`;
+    const { anio, mes } = await resolvePeriodoYYYYMM(ultimoPeriodo.id_periodo, t);
+    const tipoNombreCierre = await resolveTipoNombre(id_tipopoliza_cierre, t);
+    await acquireFolioLock({ id_tipopoliza: id_tipopoliza_cierre, anio, mes, id_centro }, t);
+    const consecutivoCierre = await nextConsecutivo({ id_tipopoliza: id_tipopoliza_cierre, anio, mes, id_centro }, t);
+    const folioCierre = buildFolioString({ tipoNombre: tipoNombreCierre, anio, mes, consecutivo: consecutivoCierre });
+
     const concepto = `CIERRE DEL EJERCICIO ${ejercicio.anio}`;
 
     let polizaCierre = await Poliza.findOne({
-      where: { id_periodo: ultimoPeriodo.id_periodo, id_tipopoliza: id_tipopoliza_cierre, folio },
+      where: { id_periodo: ultimoPeriodo.id_periodo, id_tipopoliza: id_tipopoliza_cierre, folio: folioCierre },
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
+
+    if (!polizaCierre) {
+      polizaCierre = await Poliza.findOne({
+        where: { id_periodo: ultimoPeriodo.id_periodo, id_tipopoliza: id_tipopoliza_cierre },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+        order: [['created_at', 'ASC']],
+      });
+    }
 
     if (!polizaCierre) {
       polizaCierre = await Poliza.create({
@@ -221,16 +235,25 @@ export async function cerrarEjercicio({
         id_periodo: ultimoPeriodo.id_periodo,
         id_usuario,
         id_centro,
-        folio,
+        folio:folioCierre,
         concepto,
         estado: 'Por revisar',
+        consecutivo: consecutivoCierre,
+        anio,
+        mes,
         fecha_creacion: fechaCierre,
       }, { transaction: t });
     } else {
-      polizaCierre.concepto = concepto;
-      await polizaCierre.save({ transaction: t });
-      await MovimientoPoliza.destroy({ where: { id_poliza: polizaCierre.id_poliza }, transaction: t });
-    }
+        let changed = false;
+        if (polizaCierre.folio !== folioCierre)           { polizaCierre.folio = folioCierre; changed = true; }
+        if (polizaCierre.concepto !== concepto)           { polizaCierre.concepto = concepto; changed = true; }
+        if (polizaCierre.anio !== anio)                   { polizaCierre.anio = anio; changed = true; }
+        if (polizaCierre.mes !== mes)                     { polizaCierre.mes = mes; changed = true; }
+        if (polizaCierre.consecutivo !== consecutivoCierre){ polizaCierre.consecutivo = consecutivoCierre; changed = true; }
+        if (changed) await polizaCierre.save({ transaction: t });
+
+        await MovimientoPoliza.destroy({ where: { id_poliza: polizaCierre.id_poliza }, transaction: t });
+      }
 
     // 2) Movimientos de cierre resultados vs cuentaResultadosId
     const movs = [];
@@ -265,14 +288,30 @@ export async function cerrarEjercicio({
 
       const utilidad = totalIngresos - totalGastos;
       if (Math.abs(utilidad) > 0.00005) {
-        const folio2 = `CIERRE-CAP-${ejercicio.id_empresa}-${ejercicio.anio}`;
+        const { anio: anioCap, mes: mesCap } = await resolvePeriodoYYYYMM(ultimoPeriodo.id_periodo, t);
+        const tipoNombreCierre2 = await resolveTipoNombre(id_tipopoliza_cierre, t);
+
+        await acquireFolioLock({ id_tipopoliza: id_tipopoliza_cierre, anio: anioCap, mes: mesCap, id_centro }, t);
+        const consecutivoCap = await nextConsecutivo({ id_tipopoliza: id_tipopoliza_cierre, anio: anioCap, mes: mesCap, id_centro }, t);
+        const folioCap = buildFolioString({ tipoNombre: tipoNombreCierre2, anio: anioCap, mes: mesCap, consecutivo: consecutivoCap }); // p.ej. CIERRE-12-2025-0002
+
         const concepto2 = `TRASPASO RESULTADO ${ejercicio.anio} A CAPITAL`;
 
         let polizaCap = await Poliza.findOne({
-          where: { id_periodo: ultimoPeriodo.id_periodo, id_tipopoliza: id_tipopoliza_cierre, folio: folio2 },
+          where: { id_periodo: ultimoPeriodo.id_periodo, id_tipopoliza: id_tipopoliza_cierre, folio: folioCap },
           transaction: t,
           lock: t.LOCK.UPDATE,
         });
+
+        if (!polizaCap) {
+          // Fallback por (periodo + tipo) para migrar si existía con folio viejo
+          polizaCap = await Poliza.findOne({
+            where: { id_periodo: ultimoPeriodo.id_periodo, id_tipopoliza: id_tipopoliza_cierre, concepto: { [Op.iLike]: 'TRASPASO RESULTADO%' } },
+            transaction: t,
+            lock: t.LOCK.UPDATE,
+            order: [['created_at', 'ASC']],
+          });
+        }
 
         if (!polizaCap) {
           polizaCap = await Poliza.create({
@@ -280,14 +319,23 @@ export async function cerrarEjercicio({
             id_periodo: ultimoPeriodo.id_periodo,
             id_usuario,
             id_centro,
-            folio: folio2,
+            folio: folioCap,
             concepto: concepto2,
             estado: 'Por revisar',
+            consecutivo: consecutivoCap,
+            anio: anioCap,
+            mes: mesCap,
             fecha_creacion: fechaCierre,
           }, { transaction: t });
         } else {
-          polizaCap.concepto = concepto2;
-          await polizaCap.save({ transaction: t });
+          let changed = false;
+          if (polizaCap.folio !== folioCap)           { polizaCap.folio = folioCap; changed = true; }
+          if (polizaCap.concepto !== concepto2)       { polizaCap.concepto = concepto2; changed = true; }
+          if (polizaCap.anio !== anioCap)             { polizaCap.anio = anioCap; changed = true; }
+          if (polizaCap.mes !== mesCap)               { polizaCap.mes = mesCap; changed = true; }
+          if (polizaCap.consecutivo !== consecutivoCap){ polizaCap.consecutivo = consecutivoCap; changed = true; }
+          if (changed) await polizaCap.save({ transaction: t });
+
           await MovimientoPoliza.destroy({ where: { id_poliza: polizaCap.id_poliza }, transaction: t });
         }
 
