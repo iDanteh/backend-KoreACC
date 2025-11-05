@@ -12,6 +12,9 @@ Poliza.init({
     folio: { type: DataTypes.STRING, allowNull: false, unique: true },
     concepto: { type: DataTypes.STRING, allowNull: false, },
     estado: { type: DataTypes.ENUM('Por revisar', 'Aprobada', 'Contabilizada'), allowNull: false, defaultValue: 'Por revisar' },
+    consecutivo:  { type: DataTypes.INTEGER, allowNull: false },
+    anio: { type: DataTypes.INTEGER, allowNull: false },
+    mes: { type: DataTypes.INTEGER, allowNull: false },
     fecha_creacion: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
@@ -25,6 +28,7 @@ Poliza.init({
         { fields: ['id_usuario'] },
         { fields: ['id_centro'] },
         { fields: ['estado'] },
+        { unique: true, fields: ['id_tipopoliza','anio','mes','consecutivo','id_centro'] },
     ],
     hooks: {
         beforeCreate: (inst) => { inst.updated_at = new Date(); },

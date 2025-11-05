@@ -16,7 +16,8 @@ import {
   getPolizaWithMovimientos,
   changePolizaRevisada,
   createPolizaFromEventoFlat,
-  expandEventoAndAddMovimientosFlat
+  expandEventoAndAddMovimientosFlat, 
+  getFolioSiguiente
 } from '../controllers/poliza.controller.js';
 
 const router = Router();
@@ -40,6 +41,8 @@ router.get(
   ],
   listPolizas
 );
+
+router.get('/folio-siguiente', getFolioSiguiente);
 
 router.get(
   '/:id',

@@ -1,6 +1,7 @@
 import { Op, Sequelize } from 'sequelize';
 import { sequelize } from '../config/db.js';
 import { PeriodoContable, EjercicioContable, Poliza, MovimientoPoliza, TipoPoliza } from '../models/index.js';
+import { acquireFolioLock, buildFolioString, nextConsecutivo, resolvePeriodoYYYYMM, resolveTipoNombre } from '../utils/folio-helper.js'
 
 function parseDateUTC(dateStr) { const [y,m,d]=dateStr.split('-').map(Number); return new Date(Date.UTC(y,m-1,d)); }
 function fmtUTC(d) { return d.toISOString().slice(0,10); }
@@ -131,19 +132,33 @@ export async function upsertPolizaApertura({
     }) {
     const id_tipopoliza = await getTipoPolizaIdApertura();
 
-    const folio = `APERTURA-${id_empresa}-${ejercicioDestino.anio}`;
+    // 1) Derivar año/mes reales del período destino
+    const { anio, mes } = await resolvePeriodoYYYYMM(primerPeriodo.id_periodo, t);
+
+    // 2) Normalizar nombre de tipo (p.ej. 'APERTURA') y preparar folio con bloqueo de concurrencia
+    const tipoNombre = await resolveTipoNombre(id_tipopoliza, t);
+
+    // Tomar lock asesorio por (tipo, año, mes, centro) para evitar colisiones de consecutivo
+    await acquireFolioLock({ id_tipopoliza, anio, mes, id_centro }, t);
+    const consecutivo = await nextConsecutivo({ id_tipopoliza, anio, mes, id_centro }, t);
+    const folio = buildFolioString({ tipoNombre, anio, mes, consecutivo });
     const conceptoBase = `APERTURA EJERCICIO ${ejercicioDestino.anio}${provisional ? ' (provisional)' : ''}`;
 
     // Busca si ya existe la de apertura en ese primer período (para actualizar)
     let poliza = await Poliza.findOne({
-        where: {
-        id_periodo: primerPeriodo.id_periodo,
-        id_tipopoliza,
-        folio,
-        },
+        where: {id_periodo: primerPeriodo.id_periodo, id_tipopoliza, folio },
         transaction: t,
         lock: t ? t.LOCK.UPDATE : undefined,
     });
+
+    if (!poliza) {
+        poliza = await Poliza.findOne({
+        where: { id_periodo: primerPeriodo.id_periodo, id_tipopoliza },
+        transaction: t,
+        lock: t ? t.LOCK.UPDATE : undefined,
+        order: [['created_at', 'ASC']],
+        });
+    }
 
     if (!poliza) {
         poliza = await Poliza.create({
@@ -154,13 +169,20 @@ export async function upsertPolizaApertura({
         folio,
         concepto: conceptoBase,
         estado: 'Por revisar',
+        consecutivo,
+        anio,
+        mes,
         fecha_creacion: primerPeriodo.fecha_inicio,
         }, { transaction: t });
     } else {
-        if (poliza.concepto !== conceptoBase) {
-        poliza.concepto = conceptoBase;
-        await poliza.save({ transaction: t });
-        }
+        let changed = false;
+        if (poliza.concepto !== conceptoBase) { poliza.concepto = conceptoBase; changed = true; }
+        if (poliza.folio !== folio) { poliza.folio = folio;           changed = true; }
+        if (poliza.anio !== anio) { poliza.anio = anio;             changed = true; }
+        if (poliza.mes !== mes) { poliza.mes = mes;               changed = true; }
+        if (poliza.consecutivo !== consecutivo){ poliza.consecutivo = consecutivo; changed = true; }
+        if (changed) await poliza.save({ transaction: t });
+
         await MovimientoPoliza.destroy({ where: { id_poliza: poliza.id_poliza }, transaction: t });
     }
 
