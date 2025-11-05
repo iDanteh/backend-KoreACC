@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import * as Models from '../models/index.js';
 import { ensurePolizaEditable } from '../utils/periodo.js';
 import { assertCuentaPosteable } from '../utils/cuentas.js';
+import { CfdiComprobante } from '../models/cfdi_comprobante.model.js';
 
 const { MovimientoPoliza, Poliza, Cuenta, sequelize } = Models;
 
