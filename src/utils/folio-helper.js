@@ -54,8 +54,8 @@ export async function nextConsecutivo({ id_tipopoliza, anio, mes, id_centro = nu
     return (last?.consecutivo ?? 0) + 1;
 }
 
-export function buildFolioString({ tipoNombre, anio, mes, consecutivo }) {
+export function buildFolioString({ tipoNombre, anio, id_centro, mes, consecutivo }) {
     const m = String(mes).padStart(2, '0');
     const c = String(consecutivo).padStart(4, '0');
-    return `${tipoNombre}-${m}-${anio}-${c}`;
+    return `${tipoNombre}-${m}-${id_centro}-${anio}-${c}`;
 }
