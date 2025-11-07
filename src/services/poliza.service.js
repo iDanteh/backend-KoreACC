@@ -207,7 +207,7 @@ export async function getFolioSiguienteService({ id_tipopoliza, id_periodo, id_c
 
     await acquireFolioLock({ id_tipopoliza, anio, mes, id_centro }, t);
     const consecutivo  = await nextConsecutivo({ id_tipopoliza, anio, mes, id_centro }, t);
-    const folio        = buildFolioString({ tipoNombre, anio, mes, consecutivo });
+    const folio        = buildFolioString({ tipoNombre, anio, id_centro, mes, consecutivo });
 
     return { folio, consecutivo, anio, mes };
   });
@@ -257,7 +257,9 @@ return sequelize.transaction(async (t) => {
       id_centro: payload.id_centro
     }, t);
 
-    const folio = buildFolioString({ tipoNombre, anio, mes, consecutivo });
+    const id_centro = payload.id_centro;
+
+    const folio = buildFolioString({ tipoNombre, anio, id_centro, mes, consecutivo });
 
     const poliza = await Poliza.create(
       { ...payload, folio, anio, mes, consecutivo },
@@ -357,7 +359,9 @@ export async function createPolizaPermisiva(payload, { movimientos = [] } = {}) 
       id_centro: payload.id_centro
     }, t);
 
-    const folio = buildFolioString({ tipoNombre, anio, mes, consecutivo });
+    const id_centro = payload.id_centro;
+
+    const folio = buildFolioString({ tipoNombre, anio, id_centro, mes, consecutivo });
 
     const poliza = await Poliza.create(
       {

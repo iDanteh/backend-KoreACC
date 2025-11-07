@@ -141,7 +141,7 @@ export async function upsertPolizaApertura({
     // Tomar lock asesorio por (tipo, año, mes, centro) para evitar colisiones de consecutivo
     await acquireFolioLock({ id_tipopoliza, anio, mes, id_centro }, t);
     const consecutivo = await nextConsecutivo({ id_tipopoliza, anio, mes, id_centro }, t);
-    const folio = buildFolioString({ tipoNombre, anio, mes, consecutivo });
+    const folio = buildFolioString({ tipoNombre, anio, id_centro, mes, consecutivo });
     const conceptoBase = `APERTURA EJERCICIO ${ejercicioDestino.anio}${provisional ? ' (provisional)' : ''}`;
 
     // Busca si ya existe la de apertura en ese primer período (para actualizar)
