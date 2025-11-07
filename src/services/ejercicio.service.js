@@ -210,7 +210,7 @@ export async function cerrarEjercicio({
     const tipoNombreCierre = await resolveTipoNombre(id_tipopoliza_cierre, t);
     await acquireFolioLock({ id_tipopoliza: id_tipopoliza_cierre, anio, mes, id_centro }, t);
     const consecutivoCierre = await nextConsecutivo({ id_tipopoliza: id_tipopoliza_cierre, anio, mes, id_centro }, t);
-    const folioCierre = buildFolioString({ tipoNombre: tipoNombreCierre, anio, mes, consecutivo: consecutivoCierre });
+    const folioCierre = buildFolioString({ tipoNombre: tipoNombreCierre, anio, id_centro, mes, consecutivo: consecutivoCierre });
 
     const concepto = `CIERRE DEL EJERCICIO ${ejercicio.anio}`;
 
@@ -293,7 +293,7 @@ export async function cerrarEjercicio({
 
         await acquireFolioLock({ id_tipopoliza: id_tipopoliza_cierre, anio: anioCap, mes: mesCap, id_centro }, t);
         const consecutivoCap = await nextConsecutivo({ id_tipopoliza: id_tipopoliza_cierre, anio: anioCap, mes: mesCap, id_centro }, t);
-        const folioCap = buildFolioString({ tipoNombre: tipoNombreCierre2, anio: anioCap, mes: mesCap, consecutivo: consecutivoCap }); // p.ej. CIERRE-12-2025-0002
+        const folioCap = buildFolioString({ tipoNombre: tipoNombreCierre2, anio: anioCap, id_centro, mes: mesCap, consecutivo: consecutivoCap }); // p.ej. CIERRE-12-2025-0002
 
         const concepto2 = `TRASPASO RESULTADO ${ejercicio.anio} A CAPITAL`;
 
