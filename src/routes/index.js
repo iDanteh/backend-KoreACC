@@ -14,7 +14,7 @@ import tipoPoliza from './tipoPoliza.routes.js';
 import poliza from './poliza.routes.js';
 import movimientoPoliza from './movimientoPoliza.routes.js';
 import cfdi from './cfdi.routes.js';
-import estadoResultados from './reports/estadoResultados.routes.js'
+import estadoResultados from './reports/reportes.routes.js'
 
 const router = Router();
 
