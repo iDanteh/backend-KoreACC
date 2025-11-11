@@ -1,31 +1,21 @@
 import { getEstadoResultados } from '../../services/reports/estadoResultados.service.js';
 
-export async function estadoResultadosController(req, res) {
+export async function estadoResultados(req, res) {
   try {
-    const {
-      desde,
-      hasta,
-      periodStatus = 'ambos', // 'abiertos' | 'cerrados' | 'ambos'
-      idCentro = 'todos',
-      detalle = 'false',
-      porMes = 'false',
-    } = req.query;
+    const periodoIni = parseInt(req.query.periodo_ini, 10);
+    const periodoFin = parseInt(req.query.periodo_fin, 10);
 
-    const data = await getEstadoResultados({
-      desde,
-      hasta,
-      periodStatus,
-      idCentro,
-      detalle,
-      porMes,
-    });
+    if (Number.isNaN(periodoIni) || Number.isNaN(periodoFin)) {
+      return res.status(400).json({ error: 'periodo_ini y periodo_fin deben ser enteros.' });
+    }
+    if (periodoIni > periodoFin) {
+      return res.status(400).json({ error: 'El periodo inicial no puede ser mayor que el final.' });
+    }
 
-    res.json({ ok: true, data });
+    const data = await getEstadoResultados({ periodoIni, periodoFin });
+    return res.json({ ok: true, data });
   } catch (err) {
-    console.error('[ER] Error:', err);
-    res.status(err.status || 500).json({
-      ok: false,
-      message: err.message || 'Error generando Estado de Resultados',
-    });
+    console.error('Error en estadoResultados:', err);
+    return res.status(500).json({ ok: false, error: 'Error interno al generar el estado de resultados.' });
   }
 }
