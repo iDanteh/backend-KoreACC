@@ -9,6 +9,6 @@ const router = Router();
 router.get('/estado-resultados', estadoResultados);
 
 // GET reports/mayor?periodo_ini=160&periodo_fin=161
-router.get('/mayor', mayorPorPeriodo);
+router.get('/balanza-comprobacion', mayorPorPeriodo);
 
 export default router;
