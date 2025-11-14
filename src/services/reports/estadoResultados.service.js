@@ -1,11 +1,6 @@
-
 import { QueryTypes } from 'sequelize';
 import { sequelize } from '../../config/db.js';
 
-/**
- * Retorna una sola fila con totales del Estado de Resultados:
- * ingresos, costos, utilidad_bruta, gastos_operacion, utilidad_neta
- */
 export async function getEstadoResultados({ periodoIni, periodoFin }) {
   const sql = `
 WITH
@@ -49,32 +44,79 @@ base AS (
 
 detalle AS (
   SELECT
-    CASE WHEN tipo_er = 'INGRESO' THEN GREATEST(abonos_per - cargos_per, 0) ELSE 0 END AS ingresos,
-    CASE WHEN tipo_er = 'COSTO'   THEN GREATEST(cargos_per - abonos_per, 0) ELSE 0 END AS costos,
-    CASE WHEN tipo_er = 'GASTO'   THEN GREATEST(cargos_per - abonos_per, 0) ELSE 0 END AS gastos
+    codigo,
+    nombre,
+    tipo_er,
+    naturaleza,
+    cargos_per,
+    abonos_per,
+    CASE
+      WHEN tipo_er = 'INGRESO'
+        THEN GREATEST(abonos_per - cargos_per, 0)
+      WHEN tipo_er = 'COSTO'
+        THEN GREATEST(cargos_per - abonos_per, 0)
+      WHEN tipo_er = 'GASTO'
+        THEN GREATEST(cargos_per - abonos_per, 0)
+      ELSE 0
+    END AS importe
   FROM base
+  WHERE tipo_er IN ('INGRESO','COSTO','GASTO')
 )
 
 SELECT
-  SUM(ingresos)                                      AS ingresos,
-  SUM(costos)                                        AS costos,
-  SUM(ingresos) - SUM(costos)                        AS utilidad_bruta,
-  SUM(gastos)                                        AS gastos_operacion,
-  (SUM(ingresos) - SUM(costos) - SUM(gastos))        AS utilidad_neta
-FROM detalle;
+  codigo,
+  nombre,
+  tipo_er,
+  naturaleza,
+  cargos_per,
+  abonos_per,
+  importe
+FROM detalle
+WHERE importe <> 0
+ORDER BY
+  CASE tipo_er
+    WHEN 'INGRESO' THEN 1
+    WHEN 'COSTO'  THEN 2
+    WHEN 'GASTO'  THEN 3
+    ELSE 99
+  END,
+  codigo;
   `;
 
   const rows = await sequelize.query(sql, {
     type: QueryTypes.SELECT,
-    replacements: { pini: periodoIni, pfin: periodoFin }, // <- Sequelize sustituye :pini y :pfin
+    replacements: { pini: periodoIni, pfin: periodoFin },
   });
 
-  // rows será un arreglo con 1 objeto; devolvemos el primero
-  return rows[0] ?? {
-    ingresos: 0,
-    costos: 0,
-    utilidad_bruta: 0,
-    gastos_operacion: 0,
-    utilidad_neta: 0,
+  // Totales para el resumen
+  let ingresos = 0;
+  let costos = 0;
+  let gastos = 0;
+
+  for (const row of rows) {
+    const importe = Number(row.importe) || 0;
+
+    if (row.tipo_er === 'INGRESO') {
+      ingresos += importe;
+    } else if (row.tipo_er === 'COSTO') {
+      costos += importe;
+    } else if (row.tipo_er === 'GASTO') {
+      gastos += importe;
+    }
+  }
+
+  const utilidadBruta     = ingresos - costos;
+  const gastosOperacion   = gastos;
+  const utilidadNeta      = utilidadBruta - gastosOperacion;
+
+  return {
+    resumen: {
+      ingresos,
+      costos,
+      utilidad_bruta: utilidadBruta,
+      gastos_operacion: gastosOperacion,
+      utilidad_neta: utilidadNeta,
+    },
+    detalle: rows,
   };
 }
