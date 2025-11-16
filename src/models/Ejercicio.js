@@ -17,4 +17,7 @@ EjercicioContable.init({
     sequelize,
     tableName: 'ejercicio_contable',
     timestamps: false,
+    indexes: [
+        { unique: true, fields: ['id_empresa'], where: { is_selected: true } }
+    ]
 });

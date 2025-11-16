@@ -1,5 +1,5 @@
-// routes/ejercicio.routes.js
 import { Router } from 'express';
+import { sequelize } from '../config/db.js';
 import { body, param, query } from 'express-validator';
 import { authenticateJWT, ensureNotRevoked } from '../middlewares/auth.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
@@ -79,32 +79,56 @@ router.patch('/:id/cerrar',
   [ param('id').isInt({ min: 1 }) ],
   cerrarEjercicioCtrl
 );
+
 router.put('/:id_ejercicio/select', async (req, res) => {
   const { id_ejercicio } = req.params;
 
+  const t = await sequelize.transaction();
   try {
-    console.log('📘 Recibido id_ejercicio:', id_ejercicio);
+    // 1) Obtener el ejercicio y su empresa, con lock para evitar carreras
+    const target = await EjercicioContable.findOne({
+      where: { id_ejercicio },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
 
-    await EjercicioContable.update(
-      { is_selected: false },
-      { where: {} }
-    );
-
-    const [rowsUpdated] = await EjercicioContable.update(
-      { is_selected: true },
-      { where: { id_ejercicio } }
-    );
-
-    console.log('✅ rowsUpdated:', rowsUpdated);
-
-    if (rowsUpdated === 0) {
+    if (!target) {
+      await t.rollback();
       return res.status(404).json({ message: 'Ejercicio no encontrado' });
     }
 
-    return res.json({ message: 'Ejercicio actualizado correctamente' });
+    const { id_empresa } = target;
+
+    // 2) Des-seleccionar SOLO dentro de la misma empresa
+    await EjercicioContable.update(
+      { is_selected: false },
+      { where: { id_empresa }, transaction: t }
+    );
+
+    // 3) Seleccionar el objetivo
+    const [rowsUpdated] = await EjercicioContable.update(
+      { is_selected: true },
+      { where: { id_ejercicio }, transaction: t }
+    );
+
+    if (rowsUpdated === 0) {
+      await t.rollback();
+      return res.status(404).json({ message: 'No se pudo seleccionar el ejercicio' });
+    }
+
+    // 4) Confirmar
+    await t.commit();
+
+    // 5) Devolver el registro actualizado (útil para rehidratar UI)
+    const selected = await EjercicioContable.findOne({ where: { id_ejercicio } });
+    return res.json({
+      message: 'Ejercicio seleccionado correctamente',
+      selected,
+    });
   } catch (err) {
+    if (t.finished !== 'commit') await t.rollback();
     console.error('🔥 Error en /ejercicios/:id/select:', err);
-    return res.status(500).json({ message: 'Error al actualizar el ejercicio', error: err.message });
+    return res.status(500).json({ message: 'Error al seleccionar el ejercicio', error: err.message });
   }
 });
 
