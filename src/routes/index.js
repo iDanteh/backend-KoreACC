@@ -15,6 +15,7 @@ import poliza from './poliza.routes.js';
 import movimientoPoliza from './movimientoPoliza.routes.js';
 import cfdi from './cfdi.routes.js';
 import estadoResultados from './reports/reportes.routes.js'
+import dashboardRoutes from './dashboard.routes.js';
 
 const router = Router();
 
@@ -38,5 +39,6 @@ router.use('/movimiento-poliza', movimientoPoliza);
 router.use('/cfdi', cfdi);
 
 router.use('/reports', estadoResultados);
+router.use('/dashboard-contable', dashboardRoutes);
 
 export default router;
