@@ -3,6 +3,10 @@ import { env } from '../config/env.js';
 import { Usuario, Rol } from '../models/index.js';
 import { isTokenRevoked } from '../utils/tokenDenylist.js'
 
+export function verifyJwtToken(token) {
+    return jwt.verify(token, env.jwt.secret, { issuer: env.jwt.issuer });
+}
+
 export function authenticateJWT(req, res, next) {
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;

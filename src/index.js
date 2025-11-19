@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import http from 'http';
 
 import { env } from './config/env.js';
 import { sequelize } from './config/db.js';
@@ -10,10 +11,10 @@ import './models/index.js'; // registra asociaciones
 import {notFoundHandler, errorHandler} from './middlewares/errors.js';
 
 import apiV1 from './routes/index.js';
+import { initSockets } from './sockets/index.js';
 
 const app = express();
 
-// Seguridad y middlewares
 app.use(helmet());
 app.use(cors({ origin: env.security.corsOrigin }));
 app.use(express.json({ limit: '1mb' }));
@@ -41,7 +42,12 @@ async function start() {
   try {
     await sequelize.authenticate();
     await sequelize.sync({ alter: true }); // crea/actualiza las tablas
-    app.listen(env.port, () => {
+    // app.listen(env.port, () => {
+    //   console.log(`API corriendo en http://localhost:${env.port}/api/v1`);
+    // });
+    const server = http.createServer(app);
+    initSockets(server);
+    server.listen(env.port, () => {
       console.log(`API corriendo en http://localhost:${env.port}/api/v1`);
     });
   } catch (e) {
