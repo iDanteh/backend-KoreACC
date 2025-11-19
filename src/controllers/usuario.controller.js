@@ -2,6 +2,7 @@ import { validationResult } from 'express-validator';
 import { listUsuariosService, getUsuarioByIdService, createUsuarioService,
     updateUsuarioService, softDeleteUsuarioService, reactivateUsuarioService, getPermissionsForUser } from '../services/usuario.service.js';
 import { generateSecurePassword } from '../utils/password.js';
+import { notifyUserRolesChanged } from '../sockets/index.js';
 import { sendMail } from '../config/mailer.js';
 import { Usuario } from '../models/Usuario.js';
 import { Rol } from '../models/Rol.js';
@@ -208,9 +209,15 @@ export async function updateUsuario(req, res, next) {
             actorId: req.user?.sub ?? null,
         };
 
-        const updated = await updateUsuarioService(req.params.id, updates, roles, actorMeta);
+        const idUsuario = req.params.id;
+
+        const updated = await updateUsuarioService(idUsuario, updates, roles, actorMeta);
 
         if (!updated) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+        if (Array.isArray(roles)) {
+          notifyUserRolesChanged(idUsuario, roles);
+        }
         res.json({ message: 'Usuario actualizado', usuario: updated });
     } catch (e) {
         if (e?.name === 'SequelizeUniqueConstraintError') {
@@ -242,8 +249,12 @@ export async function replaceRoles(req, res, next) {
         if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
         const roles = req.body.roles ?? [];
+        const id_usuario = req.params.id;
+
         const updated = await updateUsuarioService(req.params.id, {}, roles);
         if (!updated) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+        notifyUserRolesChanged(id_usuario, roles);
         res.json({ message: 'Roles actualizados', usuario: updated });
     } catch (e) { next(e); }
 }
