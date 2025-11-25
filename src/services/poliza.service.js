@@ -585,3 +585,36 @@ export async function addMovimientosToPoliza(id_poliza, movimientos = []) {
 export async function getPolizaWithMovimientos(id_poliza) {
   return getPoliza(id_poliza, { includeMovimientos: true });
 }
+
+export async function listMovimientosByPoliza(id_poliza,{ page = 1, pageSize = 10, withFk = true } = {}) {
+  if (!id_poliza) throw new Error('id_poliza es requerido');
+
+  const limit = Math.min(+pageSize || 10, 200);
+  const offset = Math.max(+page - 1, 0) * limit;
+
+  const include = [];
+  if (withFk) {
+    include.push({
+      model: Cuenta,
+      as: 'cuenta',
+      attributes: ['id', 'codigo', 'nombre'],
+    });
+  }
+
+  const { rows, count } = await MovimientoPoliza.findAndCountAll({
+    where: { id_poliza },
+    order: [['id_movimiento', 'ASC']],
+    limit,
+    offset,
+    include,
+    distinct: true,
+  });
+
+  return {
+    data: rows,
+    total: count,
+    page: +page,
+    pageSize: limit,
+  };
+}
+

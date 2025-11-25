@@ -79,6 +79,13 @@ export const listEjercicios = (filters = {}) => {
   });
 };
 
+export const ejercicioAbierto = () => {
+  return EjercicioContable.findAll({
+    where: { esta_abierto: true },
+    order: [['fecha_inicio', 'DESC'], ['id_ejercicio', 'DESC']],
+  });
+}
+
 export async function updateEjercicio(id, updates) {
   const item = await EjercicioContable.findByPk(id);
   if (!item) return null;
