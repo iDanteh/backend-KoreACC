@@ -1,6 +1,7 @@
-// src/controllers/poliza.controller.js
 import * as polizaService from '../services/poliza.service.js';
+import { listPolizaByEjercicio } from '../services/listPolizas/polizasList.service.js';
 import { expandEventoToMovimientos } from '../services/asientos-motor.js';
+import { listMovimientosByPoliza } from '../services/poliza.service.js';
 import { normalizeMovimientosInput } from '../utils/mov-normalizer.js';
 
 // util para ver si cuadra (se mantiene igual)
@@ -147,6 +148,32 @@ export const listPolizas = async (req, res, next) => {
   }
 };
 
+export const listPolizasByEjercicioController = async (req, res, next) => {
+  try {
+    const id_ejercicio = Number(req.params.id_ejercicio || req.params.id);
+
+    if (!id_ejercicio || Number.isNaN(id_ejercicio)) {
+      return res.status(400).json({ message: 'id_ejercicio inválido o no proporcionado' });
+    }
+
+    const withFk    = req.query.withFk !== 'false';
+    const flatten   = req.query.flatten !== 'false';
+    const includeMovimientos = req.query.includeMovimientos === 'true';
+
+    const result = await listPolizaByEjercicio(id_ejercicio, {
+      ...req.query,
+      withFk,
+      flatten,
+      includeMovimientos,
+      id_periodo: undefined,
+    });
+
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const updatePoliza = async (req, res, next) => {
   try {
     const result = await polizaService.updatePoliza(req.params.id, req.body);
@@ -204,6 +231,29 @@ export const addMovimientosToPoliza = async (req, res, next) => {
 export const getPolizaWithMovimientos = async (req, res, next) => {
   try {
     const result = await polizaService.getPolizaWithMovimientos(req.params.id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listMovimientosByPolizaController = async (req, res, next) => {
+  try {
+    const id_poliza = Number(req.params.id);
+    if (!id_poliza || Number.isNaN(id_poliza)) {
+      return res.status(400).json({ message: 'id_poliza inválido' });
+    }
+
+    const page = Number(req.query.page || 1);
+    const pageSize = Number(req.query.pageSize || 10);
+    const withFk = req.query.withFk !== 'false';
+
+    const result = await listMovimientosByPoliza(id_poliza, {
+      page,
+      pageSize,
+      withFk,
+    });
+
     res.json(result);
   } catch (err) {
     next(err);
