@@ -1,4 +1,3 @@
-// routes/poliza.routes.js
 import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticateJWT, ensureNotRevoked } from '../middlewares/auth.js';
@@ -17,7 +16,7 @@ import {
   changePolizaRevisada,
   createPolizaFromEventoFlat,
   expandEventoAndAddMovimientosFlat, 
-  getFolioSiguiente
+  getFolioSiguiente, listPolizasByEjercicioController, listMovimientosByPolizaController
 } from '../controllers/poliza.controller.js';
 
 const router = Router();
@@ -42,6 +41,17 @@ router.get(
   listPolizas
 );
 
+router.get(
+  '/por-ejercicio/:id_ejercicio',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [
+    param('id_ejercicio').isInt({ min: 1 }).withMessage('id_ejercicio debe ser entero positivo'),
+  ],
+  listPolizasByEjercicioController
+);
+
 router.get('/folio-siguiente', getFolioSiguiente);
 
 router.get(
@@ -52,6 +62,16 @@ router.get(
   [param('id').isInt({ min: 1 })],
   getPoliza
 );
+
+router.get(
+  '/:id/listmovimientos',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [param('id').isInt({ min: 1 })],
+  listMovimientosByPolizaController
+);
+
 
 router.get(
   '/:id/movimientos',
