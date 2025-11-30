@@ -259,3 +259,59 @@ export const listMovimientosByPolizaController = async (req, res, next) => {
     next(err);
   }
 };
+
+export const createPolizaAjuste = async (req, res, next) => {
+  try {
+    const { id_poliza_origen, movimientos = [], ...payload } = req.body;
+
+    const idOrigen = Number(id_poliza_origen);
+    if (!idOrigen || Number.isNaN(idOrigen)) {
+      return res.status(400).json({ message: 'id_poliza_origen inválido o no proporcionado' });
+    }
+
+    // 1) Verificar que la póliza origen existe (sin necesidad de movimientos)
+    const polizaOrigen = await polizaService.getPoliza(idOrigen, {
+      includeMovimientos: false,
+      withFk: false,
+    });
+
+    if (!polizaOrigen) {
+      return res.status(404).json({ message: 'Póliza origen no encontrada' });
+    }
+
+    // 2) Normalizar movimientos (igual que en createPoliza)
+    const movs = normalizeMovimientosInput(movimientos, {
+      defaultFecha: payload.fecha_creacion ?? payload.fecha ?? polizaOrigen.fecha_creacion ?? null,
+      defaultCc:    payload.id_centro ?? polizaOrigen.id_centro ?? null,
+      uiCargoEs0:   true,
+    });
+
+    // 3) Verificar si la póliza de ajuste queda cuadrada
+    const { ok, diff } = esCuadrada(movs);
+
+    const base = {
+      ...payload,
+      id_poliza_origen: idOrigen,              // 🔗 liga de ajuste
+      estado: payload.estado ?? 'Por revisar', // comportamiento igual que createPoliza
+    };
+
+    // Si no cuadra, marca el concepto como tal
+    const conceptoBase = payload.concepto || polizaOrigen.concepto || 'Póliza de ajuste';
+    if (!ok) {
+      base.concepto = `${conceptoBase} [NO CUADRADA Δ=${diff}]`;
+    } else {
+      base.concepto = conceptoBase;
+    }
+
+    // 4) Crear la póliza de ajuste usando la misma lógica permisiva
+    const result = await polizaService.createPolizaPermisiva(base, {
+      movimientos: movs,
+      _diff: diff,
+      _cuadrada: ok,
+    });
+
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
