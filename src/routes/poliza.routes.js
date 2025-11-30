@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticateJWT, ensureNotRevoked } from '../middlewares/auth.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
+import { createPolizaAjuste } from '../controllers/poliza.controller.js';
 
 import {
   createPoliza,
@@ -229,6 +230,50 @@ router.delete(
   requireFreshPassword(),
   [param('id').isInt({ min: 1 })],
   deletePoliza
+);
+// --- NUEVA: crear póliza de AJUSTE ---
+router.post(
+  '/ajuste',
+  authenticateJWT,
+  ensureNotRevoked,
+  requireFreshPassword(),
+  [
+    body('id_poliza_origen')
+      .isInt({ min: 1 })
+      .withMessage('id_poliza_origen debe ser entero positivo'),
+
+    body('id_tipopoliza')
+      .isInt({ min: 1 })
+      .withMessage('id_tipopoliza es requerido'),
+
+    body('id_periodo')
+      .isInt({ min: 1 })
+      .withMessage('id_periodo es requerido'),
+
+    body('id_usuario')
+      .isInt({ min: 1 })
+      .withMessage('id_usuario es requerido'),
+
+    body('id_centro')
+      .isInt({ min: 1 })
+      .withMessage('id_centro es requerido'),
+
+    body('folio')
+      .isString()
+      .trim()
+      .notEmpty()
+      .withMessage('folio es requerido'),
+
+    body('concepto')
+      .optional()
+      .isString()
+      .trim(),
+
+    body('movimientos')
+      .isArray({ min: 1 })
+      .withMessage('Debe incluir al menos un movimiento'),
+  ],
+  createPolizaAjuste
 );
 
 export default router;
