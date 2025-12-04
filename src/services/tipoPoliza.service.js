@@ -15,6 +15,17 @@ export async function createTipoPoliza(data) {
     return TipoPoliza.create(data);
 }
 
+export async function getNaturalezas() {
+    const filas = await TipoPoliza.findAll({
+        attributes: ['naturaleza'],
+        group: ['naturaleza'],
+        raw: true,
+        order: [['naturaleza', 'ASC']],
+    });
+
+    return filas.map(f => f.naturaleza);
+}
+
 export async function getTipoPoliza(id_tipopoliza) {
     const tp = await TipoPoliza.findByPk(id_tipopoliza);
     if (!tp) throw httpError('TipoPoliza no encontrado', 404);
