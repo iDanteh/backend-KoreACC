@@ -64,14 +64,14 @@ SELECT
   abonos_per AS abonos,
 
   -- SALDO FINAL
-  CASE WHEN naturaleza='DEUDORA'
-       THEN GREATEST((cargos_ini-abonos_ini)+(cargos_per-abonos_per),0)
-       ELSE GREATEST((abonos_ini-cargos_ini)+(abonos_per-cargos_per),0)
+  CASE WHEN naturaleza = 'DEUDORA'
+      THEN GREATEST((cargos_ini-abonos_ini)+(cargos_per-abonos_per), 0)
+      ELSE 0
   END AS saldo_final_deudor,
 
-  CASE WHEN naturaleza='ACREEDORA'
-       THEN GREATEST((abonos_ini-cargos_ini)+(abonos_per-cargos_per),0)
-       ELSE GREATEST((cargos_ini-abonos_ini)+(cargos_per-abonos_per),0)
+  CASE WHEN naturaleza = 'ACREEDORA'
+      THEN GREATEST((abonos_ini-cargos_ini)+(abonos_per-cargos_per), 0)
+      ELSE 0
   END AS saldo_final_acreedor
 
 FROM base

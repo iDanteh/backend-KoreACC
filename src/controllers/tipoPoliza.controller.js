@@ -18,6 +18,15 @@ export const getTipoPoliza = async (req, res, next) => {
     }
 };
 
+export const getNaturalezas = async (req, res, next) => {
+    try {
+        const result = await tipoPolizaService.getNaturalezas();
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+}
+
 export const listTipoPolizas = async (req, res, next) => {
     try {
         const result = await tipoPolizaService.listTipoPolizas(req.query);
