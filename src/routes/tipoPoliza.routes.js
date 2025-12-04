@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { body, param, query } from 'express-validator';
 import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middlewares/auth.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
-import {createTipoPoliza,getTipoPoliza,listTipoPolizas,updateTipoPoliza,deleteTipoPoliza } from '../controllers/tipoPoliza.controller.js';
+import {createTipoPoliza,getTipoPoliza,listTipoPolizas,updateTipoPoliza,deleteTipoPoliza, getNaturalezas } from '../controllers/tipoPoliza.controller.js';
 
 const router = Router();
 
@@ -14,6 +14,10 @@ router.get('/',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
         query('pageSize').optional().isInt({ min: 1, max: 200 }).toInt(),
     ],
     listTipoPolizas
+);
+
+router.get('/naturalezas',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
+    getNaturalezas
 );
 
 router.get('/:id',authenticateJWT,ensureNotRevoked,requireFreshPassword(),
