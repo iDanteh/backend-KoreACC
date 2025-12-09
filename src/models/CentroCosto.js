@@ -5,6 +5,7 @@ export class CentroCosto extends Model {}
 
 CentroCosto.init({
     id_centro: { type: DataTypes.INTEGER, primaryKey: true },
+    parent_id: { type: DataTypes.INTEGER, allowNull: true },
     serie_venta: { type: DataTypes.STRING(15), allowNull: false },
     nombre_centro: { type: DataTypes.STRING(255), allowNull: false },
     calle: { type: DataTypes.STRING(100), allowNull: false },
@@ -22,3 +23,6 @@ CentroCosto.init({
     tableName: 'centro_costo',
     timestamps: false,
 });
+
+CentroCosto.belongsTo(CentroCosto, { as: "parent", foreignKey: "parent_id" });
+CentroCosto.hasMany(CentroCosto, { as: "children", foreignKey: "parent_id" });

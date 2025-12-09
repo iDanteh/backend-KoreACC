@@ -1,5 +1,7 @@
 import { validationResult } from 'express-validator';
-import {createCentroCosto, getCentroCosto, listCentrosCosto, updateCentroCosto, deleteCentroCosto,} from '../services/centro-costo.service.js';
+import {createCentroCosto, getCentroCosto, listCentrosCosto, updateCentroCosto, deleteCentroCosto,
+    getSubtree, listRoots, listChildren, moveCentroCosto
+} from '../services/centro-costo.service.js';
 
 export async function createCentroCostoCtrl(req, res, next) {
     try {
@@ -33,6 +35,34 @@ export async function getCentroCostoCtrl(req, res, next) {
         next(e);
     }
 }
+
+export const listRaices = async (req, res, next) => {
+    try {
+        const items = await listRoots();
+        res.json(items);
+    } catch (err) { next(err); }
+};
+
+export const listHijos = async (req, res, next) => {
+    try {
+        const items = await listChildren(Number(req.params.id));
+        res.json(items);
+    } catch (err) { next(err); }
+};
+
+export const subtree = async (req, res, next) => {
+    try {
+        const tree = await getSubtree(Number(req.params.id));
+        res.json(tree);
+    } catch (err) { next(err); }
+};
+
+export const moveCentro = async (req, res, next) => {
+    try {
+        const moved = await moveCentroCosto(Number(req.params.id), req.body.new_parent_id);
+        res.json(moved);
+    } catch (err) { next(err); }
+};
 
 export async function updateCentroCostoCtrl(req, res, next) {
     try {

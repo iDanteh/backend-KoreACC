@@ -3,7 +3,9 @@ import { Router } from 'express';
 import { body, param } from 'express-validator';
 import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middlewares/auth.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
-import { createCentroCostoCtrl, listCentrosCostoCtrl, getCentroCostoCtrl, updateCentroCostoCtrl, deleteCentroCostoCtrl,} from '../controllers/centro-costo.controller.js';
+import { createCentroCostoCtrl, listCentrosCostoCtrl, getCentroCostoCtrl, updateCentroCostoCtrl, 
+    deleteCentroCostoCtrl,listRaices, listHijos, subtree,moveCentro
+} from '../controllers/centro-costo.controller.js';
 
 const router = Router();
 
@@ -11,6 +13,12 @@ const router = Router();
 router.get('/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     listCentrosCostoCtrl
 );
+
+// Jerarquía
+router.get('/roots/list', listRaices);
+router.get('/:id/children', listHijos);
+router.get('/:id/subtree', subtree);
+router.patch('/:id/move', moveCentro);
 
 // OBTENER POR ID
 router.get('/:id', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
