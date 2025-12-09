@@ -12,14 +12,14 @@ const Cuenta = sequelize.define(
 
     // clasificación contable para apertura/cierre
     tipo: {
-      type: DataTypes.ENUM("ACTIVO","PASIVO","CAPITAL","INGRESO","GASTO"),
+      type: DataTypes.ENUM("ACTIVO", "PASIVO", "CAPITAL", "INGRESO", "GASTO"),
       allowNull: false,
       field: "tipo",
     },
 
     // naturaleza contable
     naturaleza: {
-      type: DataTypes.ENUM("DEUDORA","ACREEDORA"),
+      type: DataTypes.ENUM("DEUDORA", "ACREEDORA"),
       allowNull: false,
       field: "naturaleza",
     },
@@ -54,7 +54,10 @@ const Cuenta = sequelize.define(
     tableName: "cuentas",
     timestamps: false,
     defaultScope: { where: { deleted: false } },
-    scopes: { withDeleted: {} },
+    scopes: {
+      withDeleted: {},
+      roots: { where: { parentId: null } }, // solo cuentas raíz
+    },
     indexes: [
       { fields: [{ name: "codigo" }], unique: true },
       { fields: [{ name: "tipo" }] },
@@ -64,6 +67,7 @@ const Cuenta = sequelize.define(
   }
 );
 
+// relaciones de árbol
 Cuenta.hasMany(Cuenta, {
   as: "hijos",
   foreignKey: { name: "parentId", field: "parent_id", allowNull: true },
