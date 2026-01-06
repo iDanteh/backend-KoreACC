@@ -15,7 +15,7 @@ function dayOfWeekISO(d){ const wd=d.getUTCDay(); return wd===0?7:wd; }
 function nextMonday(dateStr){
     const d=parseDateUTC(dateStr);
     const wd=dayOfWeekISO(d);
-    const delta = wd===1 ? 0 : (8-wd); // si ya es lunes, queda igual
+    const delta = wd===1 ? 0 : (8-wd); 
     d.setUTCDate(d.getUTCDate()+delta);
     return fmtUTC(d);
 }
@@ -38,7 +38,6 @@ function* generarQuincenal(desdeYYYYMMDD, hastaYYYYMMDD) {
         const q2_ini = fmtUTC(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 16)));
         const q2_fin = endOfMonthUTCFromDate(d);
 
-        // Determinar a qué quincena pertenece cursor
         const dia = d.getUTCDate();
         if (dia <= 15) {
         const ini = maxDateStr(cursor, q1_ini);
@@ -126,25 +125,20 @@ export async function obtenerSaldosFinalesBalancePorCuenta(id_ejercicio_anterior
         .filter(x => Math.abs(x.neto) > 0.00005);
 }
 
-// Crea o actualiza la póliza de apertura del ejercicio destino, asociada a su primer periodo. Si "provisional" true, marca en concepto.
 export async function upsertPolizaApertura({
     id_empresa, ejercicioDestino, primerPeriodo, saldos, id_usuario, id_centro, provisional, t,
     }) {
     const id_tipopoliza = await getTipoPolizaIdApertura();
 
-    // 1) Derivar año/mes reales del período destino
     const { anio, mes } = await resolvePeriodoYYYYMM(primerPeriodo.id_periodo, t);
 
-    // 2) Normalizar nombre de tipo (p.ej. 'APERTURA') y preparar folio con bloqueo de concurrencia
     const tipoNombre = await resolveTipoNombre(id_tipopoliza, t);
 
-    // Tomar lock asesorio por (tipo, año, mes, centro) para evitar colisiones de consecutivo
     await acquireFolioLock({ id_tipopoliza, anio, mes, id_centro }, t);
     const consecutivo = await nextConsecutivo({ id_tipopoliza, anio, mes, id_centro }, t);
     const folio = buildFolioString({ tipoNombre, anio, id_centro, mes, consecutivo });
     const conceptoBase = `APERTURA EJERCICIO ${ejercicioDestino.anio}${provisional ? ' (provisional)' : ''}`;
 
-    // Busca si ya existe la de apertura en ese primer período (para actualizar)
     let poliza = await Poliza.findOne({
         where: {id_periodo: primerPeriodo.id_periodo, id_tipopoliza, folio },
         transaction: t,
@@ -186,13 +180,12 @@ export async function upsertPolizaApertura({
         await MovimientoPoliza.destroy({ where: { id_poliza: poliza.id_poliza }, transaction: t });
     }
 
-    // Inserta movimientos (partida doble implícita por suma neta = 0 entre todas)
     const fechaMov = primerPeriodo.fecha_inicio;
     const movimientos = saldos.map(s => ({
         id_poliza: poliza.id_poliza,
         id_cuenta: s.id_cuenta,
         fecha: fechaMov,
-        operacion: s.neto >= 0 ? '0' : '1',      // neto>0 => cargo; neto<0 => abono
+        operacion: s.neto >= 0 ? '0' : '1',
         monto: Math.abs(s.neto),
         cc: id_centro,
     }));
@@ -204,15 +197,9 @@ export async function upsertPolizaApertura({
     return poliza;
     }
 
-    /**
-     * Punto de orquestación tras crear periodos: genera/aprieta apertura si procede.
-     * Si faltan id_usuario o id_centro, no crea póliza y devuelve un aviso.
-     */
     async function generarOAjustarAperturaSiCorresponde({
     ejercicioActual, creados, id_usuario, id_centro,
     }) {
-    // Hallar primer período del ejercicio actual; si no se creó en esta corrida,
-    // buscar el que ya exista con menor fecha_inicio.
     const primerPeriodo = creados.length
         ? creados.slice().sort((a,b)=>a.fecha_inicio.localeCompare(b.fecha_inicio))[0]
         : await getPrimerPeriodoDelEjercicio(ejercicioActual.id_ejercicio);
@@ -227,19 +214,14 @@ export async function upsertPolizaApertura({
         aviso: 'No existen ejercicios previos. Sugerencia: cree la póliza de apertura desde la sección de pólizas (saldo inicial manual).',
         };
     }
-
-    // Si no tengo contexto de usuario/centro, no creo nada pero aviso.
     if (!id_usuario || !id_centro) {
         return {
         aviso: 'Se detectó ejercicio previo, pero falta id_usuario o id_centro. Sugerencia: genere la póliza de apertura desde la sección de pólizas.',
         };
     }
 
-    // Criterio “pendiente de cierre”: usa tu bandera esta_abierto
     const pendienteCierre = !!ejercicioAnterior.esta_abierto;
 
-    // Trae saldos del ejercicio anterior (hasta su fin). Si luego cierras y cambian,
-    // volveremos a recalcular al cerrar.
     const saldos = await obtenerSaldosFinalesBalancePorCuenta(ejercicioAnterior.id_ejercicio);
 
     const t = await sequelize.transaction();
