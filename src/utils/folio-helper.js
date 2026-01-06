@@ -5,12 +5,41 @@ const { sequelize, Poliza, PeriodoContable, TipoPoliza } = Models;
 
 const FOLIO_NS = 'KoreACC:folio';
 
+const FOLIO = {
+    prefix: 'POL',
+    consecutivoPad: 6,
+    centroPad: 3,
+    centroGlobalTag: 'GLB',
+    sep: '-',
+};
+
+function safeToken(input, fallback = '') {
+    const s = String(input ?? fallback)
+        .normalize('NFKC')
+        .trim()
+        .toUpperCase();
+
+    return s.replace(/[^A-Z0-9_-]+/g, '') || fallback;
+}
+
+function buildCentroTag(id_centro) {
+    if (id_centro == null || id_centro === '') return FOLIO.centroGlobalTag;
+
+    const n = Number(id_centro);
+    if (Number.isFinite(n) && n >= 0) {
+        return `CC${String(n).padStart(FOLIO.centroPad, '0')}`;
+    }
+
+    return safeToken(id_centro, FOLIO.centroGlobalTag).slice(0, 8);
+}
+
 export async function resolvePeriodoYYYYMM(id_periodo, t) {
     const per = await PeriodoContable.findByPk(id_periodo, {
         attributes: ['fecha_inicio'],
         transaction: t
     });
     if (!per) throw new Error('Periodo no encontrado');
+
     const d = new Date(per.fecha_inicio);
     const anio = d.getUTCFullYear();
     const mes = d.getUTCMonth() + 1;
@@ -36,6 +65,7 @@ export async function acquireFolioLock({ id_tipopoliza, anio, mes, id_centro = n
 
 export async function nextConsecutivo({ id_tipopoliza, anio, mes, id_centro = null }, t) {
     const where = { id_tipopoliza, anio, mes };
+
     if (id_centro == null) {
         where.id_centro = { [Op.is]: null };
     } else {
@@ -47,15 +77,16 @@ export async function nextConsecutivo({ id_tipopoliza, anio, mes, id_centro = nu
         attributes: ['consecutivo'],
         order: [['consecutivo', 'DESC']],
         transaction: t,
-        lock: t.LOCK.UPDATE, 
+        lock: t.LOCK.UPDATE,
         skipLocked: false
     });
 
     return (last?.consecutivo ?? 0) + 1;
 }
 
-export function buildFolioString({ tipoNombre, anio, id_centro, mes, consecutivo }) {
-    const m = String(mes).padStart(2, '0');
-    const c = String(consecutivo).padStart(4, '0');
-    return `${tipoNombre}-${m}-${id_centro}-${anio}-${c}`;
+export function buildFolioString({ anio, mes, id_centro, consecutivo /* tipoNombre */ }) {
+    const yyyymm = `${String(anio)}${String(mes).padStart(2, '0')}`;
+    const centro = buildCentroTag(id_centro);
+    const seq = String(consecutivo ?? 0).padStart(FOLIO.consecutivoPad, '0');
+    return [FOLIO.prefix, yyyymm, centro, seq].join(FOLIO.sep);
 }
