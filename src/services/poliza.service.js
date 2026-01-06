@@ -479,7 +479,6 @@ export function buildEventoFromFlatBody(body) {
   };
 }
 
-// --- NUEVO: agregar movimientos generados desde evento a una póliza existente
 export async function expandEventoAndAddMovimientos(id_poliza, evento) {
   const pol = await Poliza.findByPk(id_poliza);
   if (!pol) throw httpError('Póliza no encontrada', 404);
@@ -498,7 +497,6 @@ export async function expandEventoAndAddMovimientos(id_poliza, evento) {
         { id_cuenta: m.id_cuenta, codigo: m.codigo },
         t
       );
-      // Verificación opcional usando el id RESUELTO
       if (Cuenta && id_cuenta) {
         const cuenta = await Cuenta.findByPk(id_cuenta, { transaction: t });
         if (!cuenta) throw httpError('Cuenta no encontrada', 404);
@@ -539,7 +537,7 @@ export async function deletePoliza(id_poliza) {
 }
 
 export async function addMovimientoToPoliza(id_poliza, movimientoData) {
-  await getPoliza(id_poliza); // asegura que la póliza exista
+  await getPoliza(id_poliza); 
   if (movimientoData.operacion !== '0' && movimientoData.operacion !== '1') {
     throw httpError('operacion inválida en movimiento (0=Haber, 1=Debe)');
   }
@@ -567,7 +565,6 @@ export async function addMovimientosToPoliza(id_poliza, movimientos = []) {
   }
 
   return sequelize.transaction(async (t) => {
-    // Validar cuenta si corresponde
     if (Cuenta) {
       const cuentaIds = [...new Set(movimientos.map(m => m.id_cuenta).filter(Boolean))];
       if (cuentaIds.length) {
