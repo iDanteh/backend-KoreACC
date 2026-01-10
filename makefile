@@ -13,6 +13,7 @@ update-repo:
 docker-build:
 	@echo "Building Docker image"
 	docker build --no-cache -t $(SERVICE_NAME) .
+	@echo "Building Docker image success"
 
 # Run the Docker containers for the ng_ecommerce service
 docker-run:
