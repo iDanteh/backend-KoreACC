@@ -37,3 +37,4 @@ export const env = {
         from: process.env.SMTP_FROM ?? 'Koreacc <no-reply@koreacc.local>',
     },
 };
+console.log(env)
