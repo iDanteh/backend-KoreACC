@@ -158,6 +158,12 @@ async function getUltimoPeriodoDelEjercicio(id_ejercicio) {
   });
 }
 
+async function getPeriodosAbiertos(id_ejercicio) {
+  return PeriodoContable.findAndCountAll({
+    where: { id_ejercicio, esta_abierto: true},
+  });
+}
+
 async function getEjercicioSiguiente(id_empresa, anio) {
   return EjercicioContable.findOne({
     where: { id_empresa, anio: { [Op.gt]: anio } },
@@ -202,9 +208,15 @@ export async function cerrarEjercicio({
 }) {
   const ejercicio = await EjercicioContable.findByPk(id_ejercicio);
   if (!ejercicio) throw new Error('Ejercicio no encontrado');
+  if (!ejercicio.esta_abierto) throw httpError('El ejercicio ya está cerrado',409);
 
   const ultimoPeriodo = await getUltimoPeriodoDelEjercicio(id_ejercicio);
   if (!ultimoPeriodo) throw new Error('El ejercicio no tiene períodos');
+
+  const periodosAbiertos = await getPeriodosAbiertos(id_ejercicio);
+  if (periodosAbiertos.count > 0) {
+    throw httpError('No se puede cerrar el ejercicio mientras tenga períodos abiertos', 400);
+  }
 
   const id_tipopoliza_cierre = await getTipoPolizaIdCierre();
   const fechaCierre = ultimoPeriodo.fecha_fin;
@@ -262,7 +274,6 @@ export async function cerrarEjercicio({
         await MovimientoPoliza.destroy({ where: { id_poliza: polizaCierre.id_poliza }, transaction: t });
       }
 
-    // 2) Movimientos de cierre resultados vs cuentaResultadosId
     const movs = [];
     let totalIngresos = 0;
     let totalGastos = 0;
@@ -289,6 +300,18 @@ export async function cerrarEjercicio({
     if (movs.length) {
       await MovimientoPoliza.bulkCreate(movs, { transaction: t });
     }
+
+    await sequelize.query(`
+      UPDATE poliza p
+      SET estado = 'Contabilizada'
+      FROM periodo_contable per
+      WHERE p.id_periodo = per.id_periodo
+        AND per.id_ejercicio = :ej
+    `, {
+      replacements: { ej: id_ejercicio },
+      transaction: t,
+      type: QueryTypes.UPDATE,
+    });
 
     if (traspasarACapital) {
       if (!cuentaCapitalId) throw new Error('cuentaCapitalId requerido para traspasar a capital');

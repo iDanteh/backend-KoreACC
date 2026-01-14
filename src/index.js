@@ -9,6 +9,7 @@ import { env } from './config/env.js';
 import { sequelize } from './config/db.js';
 import './models/index.js'; // registra asociaciones
 import {notFoundHandler, errorHandler} from './middlewares/errors.js';
+import { seedIfNeeded } from './utils/seeds/start.seed.js';
 
 import apiV1 from './routes/index.js';
 import { initSockets } from './sockets/index.js';
@@ -42,6 +43,7 @@ async function start() {
   try {
     await sequelize.authenticate();
     await sequelize.sync({ alter: true }); // crea/actualiza las tablas
+    await seedIfNeeded();
     // app.listen(env.port, () => {
     //   console.log(`API corriendo en http://localhost:${env.port}/api/v1`);
     // });
