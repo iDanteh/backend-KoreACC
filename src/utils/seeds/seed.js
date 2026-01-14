@@ -1,6 +1,6 @@
-import { sequelize } from '../config/db.js';
-import { Rol, Permiso, Usuario, UsuarioRol, RolPermiso } from '../models/index.js';
-import { env } from '../config/env.js';
+import { sequelize } from '../../config/db.js';
+import { Rol, Permiso, Usuario, UsuarioRol, RolPermiso } from '../../models/index.js';
+import { env } from '../../config/env.js';
 
 const ROLES_BASE = [
     { nombre: 'Administrador', descripcion: 'Acceso total al sistema', activo: true },
@@ -24,6 +24,36 @@ const PERMISOS_BASE = [
     // Reportes
     { nombre: 'generar_reporte', descripcion: 'Permite generar reportes financieros' },
     { nombre: 'consultar_reporte', descripcion: 'Permite consultar reportes financieros' },
+
+    // Roles
+    { nombre: 'crear_rol', descripcion: 'Permite crear nuevos roles' },
+    { nombre: 'editar_rol', descripcion: 'Permite editar roles existentes' },
+    { nombre: 'eliminar_rol', descripcion: 'Permite eliminar roles' },
+    { nombre: 'consultar_rol', descripcion: 'Permite consultar roles' },
+
+    // Empresa
+    { nombre: 'crear_empresa', descripcion: 'Permite crear la información fiscal y general de la empresa, así como periodos e impuestos' },
+    { nombre: 'editar_empresa', descripcion: 'Permite editar la información fiscal y general de la empresa, así como periodos e impuestos' },
+    { nombre: 'eliminar_empresa', descripcion: 'Permite eliminar la información fiscal y general de la empresa, así como periodos e impuestos' },
+    { nombre: 'consultar_empresa', descripcion: 'Permite consultar la información fiscal y general de la empresa, así como periodos e impuestos' },
+
+    // Impuestos
+    { nombre: 'crear_impuestos', descripcion: 'Permite crear nuevos impuestos' },
+    { nombre: 'editar_impuestos', descripcion: 'Permite editar impuestos existentes' },
+    { nombre: 'eliminar_impuestos', descripcion: 'Permite eliminar impuestos' },
+    { nombre: 'consultar_impuestos', descripcion: 'Permite consultar impuestos' },
+
+    // Catálogo contable
+    { nombre: 'consultar_cat_Contable', descripcion: 'Permite consultar el catálogo contable' },
+    { nombre: 'editar_cat_Contable', descripcion: 'Permite editar el catálogo contable' },
+    { nombre: 'eliminar_cat_Contable', descripcion: 'Permite eliminar cuentas del catálogo contable' },
+    { nombre: 'crear_cat_Contable', descripcion: 'Permite crear cuentas en el catálogo contable' },
+
+    // Catálogo centros
+    { nombre: 'consultar_cat_Centros', descripcion: 'Permite consultar el catálogo de centros' },
+    { nombre: 'editar_cat_Centros', descripcion: 'Permite editar el catálogo de centros' },
+    { nombre: 'eliminar_cat_Centros', descripcion: 'Permite eliminar centros del catálogo' },
+    { nombre: 'crear_cat_Centros', descripcion: 'Permite crear centros en el catálogo' },
 ];
 
 async function run() {
@@ -62,10 +92,9 @@ async function run() {
         },
     });
 
-    // Asociar rol Administrador al admin
     await UsuarioRol.findOrCreate({ where: { id_usuario: admin.id_usuario, id_rol: adminRole.id_rol } });
 
-    console.log('Seed completado ✅');
+    console.log('Seed completado exitosamente.');
     process.exit(0);
 }
 

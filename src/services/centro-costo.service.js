@@ -1,4 +1,5 @@
-import { CentroCosto } from '../models/index.js';
+import { CentroCosto, Poliza } from '../models/index.js';
+import { httpError } from '../utils/helper-poliza.js';
 import { sequelize } from '../config/db.js';
 
 export const createCentroCosto = (data) => CentroCosto.create(data);
@@ -79,6 +80,11 @@ export const updateCentroCosto = async (id, updates) => {
 };
 
 export const deleteCentroCosto = async (id) => {
+    const linkedPoliza = await Poliza.findOne({ where: { id_centro: id } });
+    if (linkedPoliza) {
+        throw httpError('No se puede eliminar el centro de costo porque tiene pólizas asociadas.', 409);
+    }
+
     const item = await CentroCosto.findByPk(id);
     if (!item) return null;
     await item.update({ activo: false });
