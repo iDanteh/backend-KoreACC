@@ -1,5 +1,8 @@
 export function httpError(message, status = 400) {
-    return Object.assign(new Error(message), { status });
+    const err = new Error(message);
+    err.status = status;       
+    err.expose = true;         
+    return err;
 }
 
 // Fuerza a que sea número con 2 decimales

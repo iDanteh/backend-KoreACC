@@ -1,5 +1,5 @@
-// services/cuenta.service.js
-import { Cuenta } from "../models/index.js";
+import { Cuenta, MovimientoPoliza } from "../models/index.js";
+import { httpError } from "../utils/helper-poliza.js";
 
 class CuentaService {
   // Crear
@@ -37,21 +37,22 @@ class CuentaService {
   // Eliminación lógica
   async eliminar(id) {
     const cuenta = await this.obtenerPorId(id);
+
+    const movimientos = await MovimientoPoliza.findOne({ where: { cuentaId: id } });
+    if (movimientos) {
+      throw httpError('No se puede eliminar la cuenta porque tiene movimientos asociados', 409);
+    }
+
     if (!cuenta) throw new Error("Cuenta no encontrada");
     return await cuenta.update({ deleted: true });
   }
 
-  // ---------------------------------------------------------
-  //  NUEVO: Obtener TODAS las cuentas en forma de ÁRBOL real
-  // ---------------------------------------------------------
   async obtenerArbol() {
-    // 1) Traer todas
     const rows = await Cuenta.findAll({
       order: [["codigo", "ASC"]],
       raw: true,
     });
 
-    // 2) Mapearlas por ID
     const porId = new Map();
     rows.forEach((row) => {
       porId.set(row.id, { ...row, hijos: [] });
@@ -59,23 +60,20 @@ class CuentaService {
 
     const raices = [];
 
-    // 3) Construir el árbol
     porId.forEach((cuenta) => {
       if (cuenta.parentId) {
         const padre = porId.get(cuenta.parentId);
         if (padre) {
           padre.hijos.push(cuenta);
         } else {
-          // Si el padre no existe = raíz huérfana
           raices.push(cuenta);
         }
       } else {
-        // Sin parentId → raíz del árbol
         raices.push(cuenta);
       }
     });
 
-    return raices;   // este es el árbol final
+    return raices;
   }
 }
 

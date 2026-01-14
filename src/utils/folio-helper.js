@@ -10,7 +10,7 @@ const FOLIO = {
     consecutivoPad: 6,
     centroPad: 3,
     centroGlobalTag: 'GLB',
-    sep: '-',
+    sep: '/',
 };
 
 function safeToken(input, fallback = '') {
@@ -52,7 +52,7 @@ export async function resolveTipoNombre(id_tipopoliza, t) {
         transaction: t
     });
     if (!tipo) throw new Error('Tipo de póliza no encontrado');
-    return String(tipo.naturaleza || '').toUpperCase();
+    return safeToken(tipo.naturaleza, 'POL').slice(0, 3);
 }
 
 export async function acquireFolioLock({ id_tipopoliza, anio, mes, id_centro = null }, t) {
@@ -84,9 +84,11 @@ export async function nextConsecutivo({ id_tipopoliza, anio, mes, id_centro = nu
     return (last?.consecutivo ?? 0) + 1;
 }
 
-export function buildFolioString({ anio, mes, id_centro, consecutivo /* tipoNombre */ }) {
+export function buildFolioString({ anio, mes, id_centro, consecutivo, tipoNombre }) {
+    const tipo = safeToken(tipoNombre, FOLIO.prefix).slice(0, 3);
+    const prefix = `${FOLIO.prefix}${tipo}`;
     const yyyymm = `${String(anio)}${String(mes).padStart(2, '0')}`;
     const centro = buildCentroTag(id_centro);
     const seq = String(consecutivo ?? 0).padStart(FOLIO.consecutivoPad, '0');
-    return [FOLIO.prefix, yyyymm, centro, seq].join(FOLIO.sep);
+    return [prefix, yyyymm, centro, seq].join(FOLIO.sep);
 }

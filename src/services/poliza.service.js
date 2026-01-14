@@ -215,7 +215,6 @@ export async function getFolioSiguienteService({ id_tipopoliza, id_periodo, id_c
 
 
 export async function createPoliza(payload, { movimientos = [] } = {}) {
-  // Validaciones FK mínimas
   await ensureExists(TipoPoliza, payload.id_tipopoliza, 'TipoPoliza');
   await ensureExists(PeriodoContable, payload.id_periodo, 'PeriodoContable');
   await ensureExists(Usuario, payload.id_usuario, 'Usuario');
@@ -224,11 +223,9 @@ export async function createPoliza(payload, { movimientos = [] } = {}) {
   if (!payload.concepto) throw httpError('concepto requerido');
   if (!Array.isArray(movimientos) || movimientos.length < 2) throw httpError('No se cumple partida doble');
 
-  // Validación de cuadre: estricta salvo que permitir_descuadre = true
   if (!permitir_descuadre) {
     validateMovimientosPoliza(movimientos);
   } else {
-    // Solo calcula el descuadre para dejar rastro (log); no truena
     const sumDebe  = movimientos.filter(m => m.operacion === '0')
       .reduce((s, m) => s + (Number(m.monto) || 0), 0);
     const sumHaber = movimientos.filter(m => m.operacion === '1')
@@ -239,95 +236,95 @@ export async function createPoliza(payload, { movimientos = [] } = {}) {
     }
   }
 
-return sequelize.transaction(async (t) => {
-    await ensurePeriodoAbierto(payload.id_periodo, t);
+  return sequelize.transaction(async (t) => {
+      await ensurePeriodoAbierto(payload.id_periodo, t);
 
-    const { anio, mes } = await resolvePeriodoYYYYMM(payload.id_periodo, t);
-    const tipoNombre    = await resolveTipoNombre(payload.id_tipopoliza, t);
+      const { anio, mes } = await resolvePeriodoYYYYMM(payload.id_periodo, t);
+      const tipoNombre    = await resolveTipoNombre(payload.id_tipopoliza, t);
 
-    await acquireFolioLock({
-      id_tipopoliza: payload.id_tipopoliza,
-      anio, mes,
-      id_centro: payload.id_centro
-    }, t);
+      await acquireFolioLock({
+        id_tipopoliza: payload.id_tipopoliza,
+        anio, mes,
+        id_centro: payload.id_centro
+      }, t);
 
-    const consecutivo = await nextConsecutivo({
-      id_tipopoliza: payload.id_tipopoliza,
-      anio, mes,
-      id_centro: payload.id_centro
-    }, t);
+      const consecutivo = await nextConsecutivo({
+        id_tipopoliza: payload.id_tipopoliza,
+        anio, mes,
+        id_centro: payload.id_centro
+      }, t);
 
-    const id_centro = payload.id_centro;
+      const id_centro = payload.id_centro;
 
-    const folio = buildFolioString({ tipoNombre, anio, id_centro, mes, consecutivo });
+      const folio = buildFolioString({ tipoNombre, anio, id_centro, mes, consecutivo });
 
-    const poliza = await Poliza.create(
-      { ...payload, folio, anio, mes, consecutivo },
-      { transaction: t }
-    );
+      const poliza = await Poliza.create(
+        { ...payload, folio, anio, mes, consecutivo },
+        { transaction: t }
+      );
 
-    if (movimientos?.length) {
-      const norm = (u) => String(u).normalize('NFKC').trim().toUpperCase();
-      const uuids = [...new Set(
-        movimientos.map(m => (typeof m?.uuid === 'string' ? m.uuid : ''))
-          .filter(Boolean)
-          .map(norm)
-      )];
+      if (movimientos?.length) {
+        const norm = (u) => String(u).normalize('NFKC').trim().toUpperCase();
+        const uuids = [...new Set(
+          movimientos.map(m => (typeof m?.uuid === 'string' ? m.uuid : ''))
+            .filter(Boolean)
+            .map(norm)
+        )];
 
-      if (uuids.length) {
-        const cfdis = await CfdiComprobante.findAll({
-          where: { uuid: { [Op.in]: uuids } },
-          transaction: t,
-          lock: t.LOCK.UPDATE,
-        });
+        if (uuids.length) {
+          const cfdis = await CfdiComprobante.findAll({
+            where: { uuid: { [Op.in]: uuids } },
+            transaction: t,
+            lock: t.LOCK.UPDATE,
+          });
 
-        const encontrados = new Set(cfdis.map(c => norm(c.uuid)));
-        const noHallados = uuids.filter(u => !encontrados.has(u));
-        if (noHallados.length) console.warn('CFDI no encontrados (se continúa sin asociar):', noHallados);
+          const encontrados = new Set(cfdis.map(c => norm(c.uuid)));
+          const noHallados = uuids.filter(u => !encontrados.has(u));
+          if (noHallados.length) console.warn('CFDI no encontrados (se continúa sin asociar):', noHallados);
 
-        const yaAsociados = cfdis.filter(c => c.esta_asociado);
-        if (yaAsociados.length) {
-          throw httpError(`CFDI ya asociado: ${yaAsociados.map(c => c.uuid).join(', ')}`, 409);
+          const yaAsociados = cfdis.filter(c => c.esta_asociado);
+          if (yaAsociados.length) {
+            throw httpError(`CFDI ya asociado: ${yaAsociados.map(c => c.uuid).join(', ')}`, 409);
+          }
+
+          if (cfdis.length) {
+            await CfdiComprobante.update(
+              { esta_asociado: true, updated_at: new Date() },
+              { where: { uuid: { [Op.in]: cfdis.map(c => c.uuid) } }, transaction: t }
+            );
+          }
+
+          for (const m of movimientos) if (m.uuid) m.uuid = norm(m.uuid);
         }
 
-        if (cfdis.length) {
-          await CfdiComprobante.update(
-            { esta_asociado: true, updated_at: new Date() },
-            { where: { uuid: { [Op.in]: cfdis.map(c => c.uuid) } }, transaction: t }
+        const normalizados = [];
+        for (const m of movimientos) {
+          if (m.id_poliza && m.id_poliza !== poliza.id_poliza) {
+            throw httpError('id_poliza de movimiento no coincide con la póliza creada');
+          }
+          if (m.operacion !== '0' && m.operacion !== '1') {
+            throw httpError('operacion inválida en movimiento (0=Cargo, 1=Abono)');
+          }
+          if (m.monto == null) throw httpError('monto requerido en movimiento');
+
+          const { id_cuenta } = await assertCuentaPosteable(
+            { id_cuenta: m.id_cuenta, codigo: m.codigo },
+            t
           );
+
+          if (Cuenta && id_cuenta) {
+            const cuenta = await Cuenta.findByPk(id_cuenta, { transaction: t });
+            if (!cuenta) throw httpError('Cuenta no encontrada', 404);
+          }
+
+          normalizados.push({ ...m, id_cuenta, id_poliza: poliza.id_poliza });
         }
 
-        for (const m of movimientos) if (m.uuid) m.uuid = norm(m.uuid);
+        await MovimientoPoliza.bulkCreate(normalizados, { transaction: t });
       }
 
-      const normalizados = [];
-      for (const m of movimientos) {
-        if (m.id_poliza && m.id_poliza !== poliza.id_poliza) {
-          throw httpError('id_poliza de movimiento no coincide con la póliza creada');
-        }
-        if (m.operacion !== '0' && m.operacion !== '1') {
-          throw httpError('operacion inválida en movimiento (0=Cargo, 1=Abono)');
-        }
-        if (m.monto == null) throw httpError('monto requerido en movimiento');
-
-        const { id_cuenta } = await assertCuentaPosteable(
-          { id_cuenta: m.id_cuenta, codigo: m.codigo },
-          t
-        );
-
-        if (Cuenta && id_cuenta) {
-          const cuenta = await Cuenta.findByPk(id_cuenta, { transaction: t });
-          if (!cuenta) throw httpError('Cuenta no encontrada', 404);
-        }
-
-        normalizados.push({ ...m, id_cuenta, id_poliza: poliza.id_poliza });
-      }
-
-      await MovimientoPoliza.bulkCreate(normalizados, { transaction: t });
-    }
-
-    return poliza;
-  });
+      return poliza;
+    });
 }
 
 export async function createPolizaPermisiva(payload, { movimientos = [] } = {}) {
