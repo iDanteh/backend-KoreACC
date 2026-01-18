@@ -12,7 +12,7 @@ export async function login(req, res) {
 
     const user = await findUserForLogin(identifier);
     if (!user || !(await user.validarContrasena(password)) || !user.estatus) {
-        return res.status(401).json({ message: 'Credenciales inválidas' });
+        return res.status(401).json({ message: 'Por favor, revisa nuevamente tus credenciales' });
     }
 
     const roles = user.Rols?.map(r => r.nombre) ?? [];

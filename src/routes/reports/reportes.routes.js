@@ -13,5 +13,5 @@ router.get('/estado-resultados', estadoResultados);
 router.get('/balanza-comprobacion', mayorPorPeriodo);
 
 // GET reports/mayor?periodo_ini=160&periodo_fin=161
-router.get('/balance-gral', mayorPorPeriodo);
+router.get('/balance-gral', balanceGeneral);
 export default router;

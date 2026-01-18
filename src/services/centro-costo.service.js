@@ -7,7 +7,7 @@ export const createCentroCosto = (data) => CentroCosto.create(data);
 export const getCentroCosto = (id) => CentroCosto.findByPk(id);
 
 export const listCentrosCosto = () =>
-    CentroCosto.findAll({ order: [['id_centro', 'ASC']] });
+    CentroCosto.findAll({ order: [['id_centro', 'ASC']], where: { activo: true } });
 
 export const listRoots = async () => {
     const sql = `

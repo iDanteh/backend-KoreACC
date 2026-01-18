@@ -50,28 +50,31 @@ base AS (
     AND COALESCE(c.deleted, FALSE) = FALSE
 )
 
--- 📊 Resultados finales
 SELECT
   codigo,
   nombre,
 
-  -- SALDO INICIAL
-  CASE WHEN naturaleza='DEUDORA'   AND (cargos_ini-abonos_ini)>0 THEN (cargos_ini-abonos_ini) ELSE 0 END AS saldo_inicial_deudor,
-  CASE WHEN naturaleza='ACREEDORA' AND (abonos_ini-cargos_ini)>0 THEN (abonos_ini-cargos_ini) ELSE 0 END AS saldo_inicial_acreedor,
+  -- netos (con signo)
+  (cargos_ini - abonos_ini) AS neto_ini,
+  (cargos_ini - abonos_ini) + (cargos_per - abonos_per) AS neto_fin,
 
-  -- MOVIMIENTO DEL PERIODO
+  -- SALDO INICIAL (partido por signo)
+  CASE WHEN (cargos_ini - abonos_ini) > 0 THEN (cargos_ini - abonos_ini) ELSE 0 END AS saldo_inicial_deudor,
+  CASE WHEN (cargos_ini - abonos_ini) < 0 THEN ABS(cargos_ini - abonos_ini) ELSE 0 END AS saldo_inicial_acreedor,
+
+  -- MOVIMIENTO
   cargos_per AS cargos,
   abonos_per AS abonos,
 
-  -- SALDO FINAL
-  CASE WHEN naturaleza = 'DEUDORA'
-      THEN GREATEST((cargos_ini-abonos_ini)+(cargos_per-abonos_per), 0)
-      ELSE 0
+  -- SALDO FINAL (partido por signo)
+  CASE WHEN ((cargos_ini - abonos_ini) + (cargos_per - abonos_per)) > 0
+       THEN ((cargos_ini - abonos_ini) + (cargos_per - abonos_per))
+       ELSE 0
   END AS saldo_final_deudor,
 
-  CASE WHEN naturaleza = 'ACREEDORA'
-      THEN GREATEST((abonos_ini-cargos_ini)+(abonos_per-cargos_per), 0)
-      ELSE 0
+  CASE WHEN ((cargos_ini - abonos_ini) + (cargos_per - abonos_per)) < 0
+       THEN ABS((cargos_ini - abonos_ini) + (cargos_per - abonos_per))
+       ELSE 0
   END AS saldo_final_acreedor
 
 FROM base
