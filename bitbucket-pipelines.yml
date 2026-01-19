@@ -1,0 +1,27 @@
+# This is a sample build configuration for Other.
+# Check our guides at https://confluence.atlassian.com/x/5Q4SMw for more examples.
+# Only use spaces to indent your .yml configuration.
+# -----
+# You can specify a custom docker image from Docker Hub as your build environment.
+# Imagen principal por defecto: se mantiene para Docker, SSH, etc.
+image: atlassian/default-image:2
+
+pipelines:
+  branches:
+    qa:
+      - step:
+          name: Testing Backend kore-acc Update
+          script:
+            - ssh $USERPRUEBAS@$HOSTPRUEBAS 'cd $HOME/kore-acc/backend-acc && make deploy'
+
+    develop:
+      - step:
+          name: Develop Backend kore-acc Update
+          script:
+            - ssh $USERDESARROLLO@$HOSTDESARROLLO 'cd $HOME/kore-acc/backend-acc && make deploy'
+
+    production:
+      - step:
+          name: Production Backend kore-acc Update
+          script:
+            - ssh $USERPRODSCM@$HOSTPRODSCM 'cd $HOME/kore-acc/backend-acc && make deploy'
