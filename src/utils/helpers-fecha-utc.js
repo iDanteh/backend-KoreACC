@@ -1,5 +1,3 @@
-// helpers-fecha-utc.js
-
 function parseDateUTC(dateStr) {
   // "YYYY-MM-DD" -> Date en UTC exacto (00:00:00Z)
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -7,7 +5,7 @@ function parseDateUTC(dateStr) {
 }
 
 function fmtUTC(d) {
-  // Date -> "YYYY-MM-DD" sin desfases
+  // Date YYYY-MM-DD" 
   return d.toISOString().slice(0, 10);
 }
 
@@ -28,4 +26,12 @@ export function startOfNextMonthUTC(dateStr) {
   const d = parseDateUTC(dateStr);
   const firstNext = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
   return fmtUTC(firstNext);
+}
+
+export function todayISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }

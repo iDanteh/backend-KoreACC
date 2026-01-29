@@ -1,13 +1,17 @@
-// routes/centro-costo.routes.js
 import { Router } from 'express';
 import { body, param } from 'express-validator';
 import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middlewares/auth.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 import { createCentroCostoCtrl, listCentrosCostoCtrl, getCentroCostoCtrl, updateCentroCostoCtrl, 
-    deleteCentroCostoCtrl,listRaices, listHijos, subtree,moveCentro
+    deleteCentroCostoCtrl,listRaices, listHijos, subtree,moveCentro, exportCentrosCosto
 } from '../controllers/centro-costo.controller.js';
 
 const router = Router();
+
+// EXPORTAR
+router.get('/export.xlsx', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
+    exportCentrosCosto
+);
 
 // LISTAR
 router.get('/', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
