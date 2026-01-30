@@ -5,6 +5,7 @@ import { upload } from "../middlewares/multer.js";
 const router = express.Router();
 
 router.get("/export.xlsx", cuentaController.exportCuentasXlsx);
+router.get("/export.pdf", cuentaController.exportCuentasPDF);
 router.post("/import.xlsx", upload.single('file'), cuentaController.importCuentasXlsx);
 
 router.post("/", cuentaController.crearCuenta);

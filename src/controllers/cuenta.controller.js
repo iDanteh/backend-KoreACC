@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs';
 import XLSX from 'xlsx';
 import { sequelize } from "../config/db.js";
 import { todayISO } from '../utils/helpers-fecha-utc.js';
+import PDFDocument from 'pdfkit';
 
 const mapSequelizeError = (error, res) => {
   // Unique constraint -> 409
@@ -344,5 +345,98 @@ export async function importCuentasXlsx(req, res) {
   } catch (err) {
     console.error('importCuentasXlsx:', err);
     return res.status(500).json({ ok: false, message: 'Error importando cuentas' });
+  }
+}
+
+export async function exportCuentasPDF(req, res) {
+  try {
+    const cuentas = await Cuenta.findAll({
+      where: { deleted: false },
+      order: [['codigo', 'ASC']],
+      raw: true,
+    });
+
+    const porId = new Map(cuentas.map(c => [c.id, c]));
+
+    const rows = cuentas.map(c => {
+      const p = c.parentId ? porId.get(c.parentId) : null;
+      return [
+        c.codigo ?? '',
+        c.nombre ?? '',
+        yn(!!c.ctaMayor),
+        yn(!!c.posteable),
+        c.tipo ?? '',
+        c.naturaleza ?? '',
+        p?.codigo ?? '',
+        p?.nombre ?? '',
+      ];
+    });
+
+    const HEAD = ['Código', 'Nombre', '¿Mayor?', 'Posteable', 'Tipo', 'Naturaleza', 'Padre (Código)', 'Padre (Nombre)'];
+
+    const doc = new PDFDocument({
+      size: 'A4',
+      layout: 'landscape',
+      margin: 30,
+    });
+
+    const filename = `catalogo_cuentas_${todayISO()}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    doc.pipe(res);
+
+    doc.fontSize(16).text('Catálogo de cuentas', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(9).text(`Fecha de generación: ${todayISO()}`, { align: 'right' });
+    doc.moveDown();
+
+    const colWidths = [85, 230, 70, 80, 90, 95, 110, 230];
+
+    let y = doc.y;
+    const x0 = doc.page.margins.left;
+    const rowH = 20;
+
+    const drawRow = (row, isHeader = false) => {
+      let x = x0;
+
+      doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+
+      row.forEach((cell, i) => {
+        doc.rect(x, y, colWidths[i], rowH).stroke();
+        doc.text(String(cell ?? ''), x + 5, y + 5, {
+          width: colWidths[i] - 10,
+          height: rowH - 10,
+          ellipsis: true,
+        });
+        x += colWidths[i];
+      });
+
+      y += rowH;
+    };
+
+    drawRow(HEAD, true);
+
+    for (const r of rows) {
+      if (y > doc.page.height - 50) {
+        doc.addPage();
+        y = doc.page.margins.top;
+        drawRow(HEAD, true);
+      }
+      drawRow(r, false);
+    }
+
+    doc.end();
+  } catch (err) {
+    console.error('exportCuentasPdf ERROR:', err);
+
+    if (!res.headersSent) {
+      return res.status(500).json({
+        ok: false,
+        message: err?.message ?? 'Error exportando cuentas (PDF)',
+        parent: err?.parent?.message ?? null,
+      });
+    }
+    res.end();
   }
 }

@@ -4,6 +4,8 @@ import {createCentroCosto, getCentroCosto, listCentrosCosto, updateCentroCosto, 
 } from '../services/centro-costo.service.js';
 import { CentroCosto } from '../models/index.js';
 import { todayISO } from '../utils/helpers-fecha-utc.js';
+import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
 
 export async function createCentroCostoCtrl(req, res, next) {
     try {
@@ -159,6 +161,87 @@ export async function exportCentrosCosto(req, res) {
     } catch (err) {
         console.error('exportCentrosCostoXlsx ERROR:', err);
         if (!res.headersSent) return res.status(500).json({ ok: false, message: err?.message ?? 'Error exportando centros' });
+        res.end();
+    }
+}
+
+export async function exportCentrosCostoPdf(req, res) {
+    try {
+        const centros = await CentroCosto.findAll({
+        where: { activo: true },
+        order: [['id_centro', 'ASC']],
+        raw: true,
+        });
+
+        const byId = new Map(centros.map(c => [c.id_centro, c]));
+
+        const rows = centros.map(c => {
+        const p = c.parent_id ? byId.get(c.parent_id) : null;
+        return [
+            c.id_centro ?? '',
+            c.nombre_centro ?? '',
+            c.serie ?? '',
+            yn(!!c.activo),
+            c.parent_id ?? '',
+            p?.nombre_centro ?? '',
+        ];
+        });
+
+        const HEAD = ['ID', 'Nombre', 'Serie', 'Activo', 'Padre (ID)', 'Padre (Nombre)'];
+
+        const doc = new PDFDocument({
+        size: 'A4',
+        layout: 'landscape',
+        margin: 30,
+        });
+
+        const filename = `centros_costo_${todayISO()}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+        doc.pipe(res);
+
+        doc.fontSize(16).text('Centros de Costo', { align: 'center' });
+        doc.moveDown(0.5);
+        doc.fontSize(9).text(`Fecha de generación: ${todayISO()}`, { align: 'right' });
+        doc.moveDown();
+
+        const colWidths = [60, 200, 70, 50, 80, 220];
+        let y = doc.y;
+
+        const drawRow = (row, isHeader = false) => {
+        let x = doc.page.margins.left;
+        row.forEach((cell, i) => {
+            doc
+            .fontSize(9)
+            .font(isHeader ? 'Helvetica-Bold' : 'Helvetica')
+            .rect(x, y, colWidths[i], 20)
+            .stroke()
+            .text(String(cell), x + 5, y + 5, {
+                width: colWidths[i] - 10,
+                align: 'left',
+            });
+            x += colWidths[i];
+        });
+        y += 20;
+        };
+
+        drawRow(HEAD, true);
+
+        rows.forEach(r => {
+        if (y > doc.page.height - 50) {
+            doc.addPage();
+            y = doc.page.margins.top;
+            drawRow(HEAD, true);
+        }
+        drawRow(r);
+        });
+
+        doc.end();
+    } catch (err) {
+        console.error('exportCentrosCostoPdf ERROR:', err);
+        if (!res.headersSent)
+        return res.status(500).json({ ok: false, message: err?.message ?? 'Error exportando PDF' });
         res.end();
     }
 }

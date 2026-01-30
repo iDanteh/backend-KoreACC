@@ -3,7 +3,7 @@ import { body, param } from 'express-validator';
 import { authenticateJWT, authorizeRoles, ensureNotRevoked } from '../middlewares/auth.js';
 import { requireFreshPassword } from '../middlewares/requiereFreshPassword.js';
 import { createCentroCostoCtrl, listCentrosCostoCtrl, getCentroCostoCtrl, updateCentroCostoCtrl, 
-    deleteCentroCostoCtrl,listRaices, listHijos, subtree,moveCentro, exportCentrosCosto
+    deleteCentroCostoCtrl,listRaices, listHijos, subtree,moveCentro, exportCentrosCosto, exportCentrosCostoPdf
 } from '../controllers/centro-costo.controller.js';
 
 const router = Router();
@@ -11,6 +11,10 @@ const router = Router();
 // EXPORTAR
 router.get('/export.xlsx', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
     exportCentrosCosto
+);
+
+router.get('/export.pdf', authenticateJWT, ensureNotRevoked, requireFreshPassword(),
+    exportCentrosCostoPdf
 );
 
 // LISTAR
