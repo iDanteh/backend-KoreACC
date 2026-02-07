@@ -1,6 +1,6 @@
 import { getMayorByPeriodRange } from '../../services/reports/balanzaComprobacion.service.js';
 import ExcelJS from 'exceljs';
-import { getEmpresaInfo } from '../../utils/empresainfo.js';
+import { getEmpresaInfo } from '../../utils/empresainf.js';
 import { todayISO } from '../../utils/helpers-fecha-utc.js';
 
 export async function mayorPorPeriodo(req, res) {

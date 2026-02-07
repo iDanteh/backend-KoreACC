@@ -1,5 +1,5 @@
 import { sequelize } from "../../config/db.js";
-import { Rol, Permiso, Usuario, RolPermiso, TipoPoliza } from "../../models/index.js";
+import { Rol, Permiso, Usuario, RolPermiso, TipoPoliza, UsuarioRol } from "../../models/index.js";
 import { env } from "../../config/env.js";
 
     const ROLES_BASE = [
